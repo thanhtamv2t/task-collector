@@ -280,10 +280,18 @@ To backfill exported Telegram Desktop JSON into PostgreSQL:
 npm run telegram:import-export -- result.json
 ```
 
+If the app is running only in Docker, use the container image instead:
+
+```bash
+npm run telegram:import-export:docker
+```
+
 For supergroups, the importer infers the Bot API chat id as `-100<export_id>`. Override it if needed:
 
 ```bash
 npm run telegram:import-export -- result.json --chat-id=-1001234567890
+docker compose run --rm -v "$PWD/result.json:/app/result.json:ro" api \
+  node scripts/import-telegram-desktop-export.js /app/result.json --chat-id=-1001234567890
 ```
 
 The importer skips service and empty messages by default, inserts imported messages as `pending`,
