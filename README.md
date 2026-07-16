@@ -272,6 +272,23 @@ Admin commands:
 Reports use Telegram MarkdownV2 escaping and are split into multiple Telegram messages when they
 are long.
 
+## Telegram Desktop Import
+
+To backfill exported Telegram Desktop JSON into PostgreSQL:
+
+```bash
+npm run telegram:import-export -- result.json
+```
+
+For supergroups, the importer infers the Bot API chat id as `-100<export_id>`. Override it if needed:
+
+```bash
+npm run telegram:import-export -- result.json --chat-id=-1001234567890
+```
+
+The importer skips service and empty messages by default, inserts imported messages as `pending`,
+and is safe to run multiple times.
+
 ## Dashboard
 
 The management dashboard lives in `dashboard/` and follows the Vite + React + shadcn-admin style.

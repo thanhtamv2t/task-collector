@@ -8,3 +8,5 @@ dashboard/dist
 coverage
 *.log
 .DS_Store
+result.json
+telegram-export*.json

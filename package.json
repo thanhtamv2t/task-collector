@@ -12,6 +12,7 @@
     "prepare:dev": "sh scripts/prepare-dev.sh",
     "setup:vps": "sh scripts/vps-auto-setup.sh",
     "telegram:webhook": "sh scripts/setup-telegram-webhook.sh",
+    "telegram:import-export": "node scripts/import-telegram-desktop-export.js",
     "runtime:telegram-check": "sh scripts/check-telegram-runtime.sh",
     "runtime:openrouter-check": "sh scripts/check-openrouter-runtime.sh",
     "runtime:validate": "sh scripts/validate-runtime-env.sh",
