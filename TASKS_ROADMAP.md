@@ -143,6 +143,7 @@
 - [x] VPS/dashboard deploy scripts detect and install the host Node.js `libatomic` runtime dependency.
 - [x] Dashboard Tailwind dependencies are pinned to a release-age-safe `4.3.2` lockfile version.
 - [x] Performance API filters are applied in the source CTE, fixing 500 errors on paginated/filter requests.
+- [x] Performance SQL uses whitelisted literal date-trunc/interval units, fixing PostgreSQL runtime errors.
 
 ## Next Up
 

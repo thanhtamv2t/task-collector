@@ -220,6 +220,8 @@ export class InternalDashboardService {
     const pageSize = Math.min(50, Math.max(5, input.pageSize));
     const offset = (page - 1) * pageSize;
     const periodUnit = mode === 'day' ? 'day' : mode === 'month' ? 'month' : mode === 'year' ? 'year' : 'week';
+    const periodUnitSql = sql.raw(`'${periodUnit}'`);
+    const periodIntervalSql = sql.raw(`interval '1 ${periodUnit}'`);
     const memberFilter = input.memberName ? sql`and coalesce(user_group.value->>'name', 'Unknown') = ${input.memberName}` : sql``;
     const dateFilter = input.from ? sql`and r.period_start >= ${new Date(input.from)}` : sql``;
     const endFilter = input.to ? sql`and r.period_start <= ${new Date(input.to)}` : sql``;
@@ -227,8 +229,8 @@ export class InternalDashboardService {
     const rowsResult = await this.database.db.execute(sql`
       with report_items as (
         select
-          date_trunc('${periodUnit}', r.period_start) as period_start,
-          date_trunc('${periodUnit}', r.period_start) + interval '1 ${periodUnit}' as period_end,
+          date_trunc(${periodUnitSql}, r.period_start) as period_start,
+          date_trunc(${periodUnitSql}, r.period_start) + ${periodIntervalSql} as period_end,
           coalesce(user_group.value->>'name', 'Unknown') as member_name,
           item.value->>'eventType' as event_type,
           item.value->>'summary' as summary,
@@ -274,7 +276,7 @@ export class InternalDashboardService {
       select count(*)::int as total
       from (
         select
-          date_trunc('${periodUnit}', r.period_start),
+          date_trunc(${periodUnitSql}, r.period_start),
           coalesce(user_group.value->>'name', 'Unknown') as member_name
         from reports r
         cross join lateral jsonb_array_elements(r.structured_content->'byUser') as user_group(value)
