@@ -7,6 +7,7 @@ loadEnv('.env');
 const databaseUrl = process.env.DATABASE_URL;
 const adminToken = process.env.INTERNAL_ADMIN_TOKEN;
 const apiUrl = process.env.INTERNAL_API_URL || 'http://127.0.0.1:3000';
+const fallbackApiUrl = process.env.INTERNAL_API_FALLBACK_URL || 'http://api:3000';
 const waitMs = Number(process.env.PROCESS_PENDING_WAIT_MS || 120_000);
 
 if (!databaseUrl) {
@@ -18,6 +19,7 @@ if (!adminToken) {
 }
 
 async function main() {
+  const resolvedApiUrl = await waitForApi();
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
 
@@ -47,7 +49,7 @@ async function main() {
     };
 
     console.log('[process-pending] triggering extraction:', payload);
-    await post('/internal/jobs/extract', payload);
+    await post(resolvedApiUrl, '/internal/jobs/extract', payload);
 
     const settled = await waitUntilSettled(client, waitMs);
     console.log('[process-pending] message status after extraction wait:', settled.status);
@@ -58,7 +60,7 @@ async function main() {
     }
 
     console.log('[process-pending] triggering report:', payload);
-    await post('/internal/jobs/report', payload);
+    await post(resolvedApiUrl, '/internal/jobs/report', payload);
     console.log('[process-pending] Done. Refresh dashboard in a few seconds.');
   } finally {
     await client.end();
@@ -104,8 +106,33 @@ async function waitUntilSettled(client, timeoutMs) {
   return { status: lastStatus, timedOut: true };
 }
 
-async function post(path, body) {
-  const response = await fetch(`${apiUrl}${path}`, {
+async function waitForApi() {
+  const urls = [apiUrl, fallbackApiUrl].filter((url, index, list) => list.indexOf(url) === index);
+  const startedAt = Date.now();
+  let lastError = null;
+
+  while (Date.now() - startedAt < 60_000) {
+    for (const url of urls) {
+      try {
+        const response = await fetch(`${url}/health`);
+        if (response.ok) {
+          console.log(`[process-pending] API ready at ${url}`);
+          return url;
+        }
+        lastError = new Error(`${url}/health returned ${response.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  throw lastError ?? new Error('API did not become ready');
+}
+
+async function post(baseUrl, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
