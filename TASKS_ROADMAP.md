@@ -133,6 +133,7 @@
 - [x] Dashboard report details and maintenance confirmations use drawer UI with sonner-style toasts.
 - [x] Docker image installs Alpine `libatomic` so Node can load `libatomic.so.1` in API/worker/script containers.
 - [x] Dashboard uses shadcn-admin UI primitives and Tailwind theme for buttons, badges, sheets, tables, and controls.
+- [x] Dashboard shell uses shadcn-admin SidebarProvider, collapsible Sidebar, SidebarMenu, and mobile Sheet navigation.
 - [x] Dashboard report detail renders Markdown with `react-markdown` and GitHub-flavored Markdown support.
 - [x] Dashboard uses Sonner for action feedback.
 - [x] Performance summary filters by member and date range with day/week/month/year aggregation.
@@ -141,6 +142,7 @@
 - [x] Dashboard reminder trigger runs the missing-report check immediately and returns reminder counts.
 - [x] VPS/dashboard deploy scripts detect and install the host Node.js `libatomic` runtime dependency.
 - [x] Dashboard Tailwind dependencies are pinned to a release-age-safe `4.3.2` lockfile version.
+- [x] Performance API filters are applied in the source CTE, fixing 500 errors on paginated/filter requests.
 
 ## Next Up
 

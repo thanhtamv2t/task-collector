@@ -66,6 +66,66 @@ button:disabled {
   grid-template-columns: 260px minmax(0, 1fr);
 }
 
+.template-app {
+  display: flex;
+  width: 100%;
+  background: var(--background);
+}
+
+.template-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.template-brand-copy,
+.template-user div {
+  min-width: 0;
+}
+
+.template-brand-copy strong,
+.template-brand-copy span,
+.template-user strong,
+.template-user span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-brand-copy span,
+.template-user span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.template-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.template-user img {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.template-header-tools {
+  display: flex;
+  align-items: center;
+}
+
 .sidebar {
   border-right: 1px solid var(--border);
   background: var(--panel);
@@ -998,6 +1058,10 @@ tr:last-child td {
 }
 
 @media (max-width: 680px) {
+  .template-app {
+    display: flex;
+  }
+
   .content {
     padding: 14px;
   }

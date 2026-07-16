@@ -28,6 +28,21 @@ import remarkGfm from 'remark-gfm';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from './components/ui/sidebar';
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -441,46 +456,15 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <Bot size={20} />
-          </div>
-          <div>
-            <strong>Performance Reporter</strong>
-            <span>Performance Console</span>
-          </div>
-        </div>
+    <SidebarProvider>
+      <div className="app-shell template-app">
+        <TemplateSidebar active={active} onNavigate={setActive} user={user} />
 
-        <nav className="nav-list" aria-label="Dashboard sections">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                className={active === item.id ? 'nav-item active' : 'nav-item'}
-                onClick={() => setActive(item.id)}
-                type="button"
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="sidebar-card">
-          <Shield size={18} />
-          <div>
-            <strong>GitHub Admin</strong>
-            <span>@{user.login}</span>
-          </div>
-        </div>
-      </aside>
-
-      <main className="content">
+      <main className="content template-content">
         <header className="topbar">
+          <div className="template-header-tools">
+            <SidebarTrigger variant="outline" title="Toggle navigation" />
+          </div>
           <div>
             <h1>Telegram Performance Reporter</h1>
             <p>Create performance reports, inspect member evidence, and monitor collection health.</p>
@@ -562,7 +546,6 @@ export function App() {
         ) : null}
         {active === 'messages' ? <Messages messages={filtered.messages} /> : null}
         {active === 'jobs' ? <Jobs jobs={filtered.jobs} onRunJob={runJob} /> : null}
-      </main>
       <ReportDrawer
         report={data.reports.find((report) => report.id === selectedReportId) ?? null}
         open={reportDrawerOpen}
@@ -575,7 +558,63 @@ export function App() {
         onClean={cleanDerivedData}
       />
       <Toaster />
-    </div>
+      </main>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+function TemplateSidebar({
+  active,
+  onNavigate,
+  user,
+}: {
+  active: SectionId;
+  onNavigate: (section: SectionId) => void;
+  user: AuthUser;
+}) {
+  return (
+    <Sidebar collapsible="icon" variant="sidebar">
+      <SidebarHeader>
+        <div className="template-brand">
+          <div className="brand-mark"><Bot size={19} /></div>
+          <div className="template-brand-copy">
+            <strong>Performance Reporter</strong>
+            <span>Admin Console</span>
+          </div>
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton isActive={active === item.id} tooltip={item.label} onClick={() => onNavigate(item.id)}>
+                      <Icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter>
+        <div className="template-user">
+          {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <Shield size={16} />}
+          <div>
+            <strong>{user.name ?? user.login}</strong>
+            <span>GitHub admin</span>
+          </div>
+        </div>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 }
 

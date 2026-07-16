@@ -237,6 +237,8 @@ export class InternalDashboardService {
         from reports r
         cross join lateral jsonb_array_elements(r.structured_content->'byUser') as user_group(value)
         cross join lateral jsonb_array_elements(user_group.value->'items') as item(value)
+        where 1 = 1
+          ${memberFilter} ${dateFilter} ${endFilter}
       ),
       grouped as (
         select
@@ -260,7 +262,6 @@ export class InternalDashboardService {
           ) as items
         from report_items
         where event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
-          ${memberFilter} ${dateFilter} ${endFilter}
         group by period_start, period_end, member_name
       )
       select *
