@@ -190,6 +190,23 @@ export class InternalDashboardService {
       .limit(limit);
   }
 
+  async cleanDerivedData() {
+    const deletedReports = await this.database.db.delete(reports).returning({ id: reports.id });
+    const deletedAiRuns = await this.database.db.delete(aiRuns).returning({ id: aiRuns.id });
+    const deletedJobBatches = await this.database.db.delete(jobBatches).returning({ id: jobBatches.id });
+    const deletedTaskEvents = await this.database.db.delete(taskEvents).returning({ id: taskEvents.id });
+    const deletedTasks = await this.database.db.delete(tasks).returning({ id: tasks.id });
+
+    return {
+      deletedReports: deletedReports.length,
+      deletedAiRuns: deletedAiRuns.length,
+      deletedJobBatches: deletedJobBatches.length,
+      deletedTaskEvents: deletedTaskEvents.length,
+      deletedTasks: deletedTasks.length,
+      preservedMessages: true,
+    };
+  }
+
   async performance(input: { mode: string; page: number; pageSize: number }) {
     const mode = ['day', 'week', 'month'].includes(input.mode) ? input.mode : 'week';
     const page = Math.max(1, input.page);

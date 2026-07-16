@@ -15,6 +15,8 @@
     "telegram:import-export": "node scripts/import-telegram-desktop-export.js",
     "telegram:import-export:docker": "sh scripts/import-telegram-export-docker.sh",
     "telegram:process-pending:docker": "sh scripts/process-pending-docker.sh",
+    "data:clean-derived": "node scripts/clean-derived-data.js",
+    "data:clean-derived:docker": "sh scripts/clean-derived-data-docker.sh",
     "runtime:telegram-check": "sh scripts/check-telegram-runtime.sh",
     "runtime:openrouter-check": "sh scripts/check-openrouter-runtime.sh",
     "runtime:validate": "sh scripts/validate-runtime-env.sh",

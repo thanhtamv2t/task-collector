@@ -273,6 +273,15 @@ export class InternalDashboardController {
     });
   }
 
+  @Post('cleanup-derived')
+  async cleanupDerivedData(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.cleanDerivedData();
+  }
+
   @Get('messages')
   async messages(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
     this.assertAuthorized(token, cookie);

@@ -158,6 +158,18 @@ VPS setup:
 npm run dashboard:deploy
 ```
 
+To clean generated/derived data while preserving Telegram messages:
+
+```bash
+npm run data:clean-derived -- --yes
+```
+
+Inside Docker on the VPS:
+
+```bash
+npm run data:clean-derived:docker
+```
+
 See [RUNBOOK.md](RUNBOOK.md) for backup, restore, health checks, and incident handling.
 
 To run all local checks and print the remaining external runtime checklist:

@@ -128,6 +128,9 @@
 - [x] Dashboard task tab/columns are removed from the main admin surface.
 - [x] Performance reports include executive insights, highlights, risks, recommendations, and member scoring.
 - [x] AI prompt splits dense daily reports into atomic work items and classifies completed Vietnamese work signals more accurately.
+- [x] Dashboard maintenance action and CLI scripts clean generated data while preserving messages.
+- [x] Dashboard report details and maintenance confirmations use drawer UI with sonner-style toasts.
+- [x] Docker image installs Alpine `libatomic` so Node can load `libatomic.so.1` in API/worker/script containers.
 
 ## Next Up
 

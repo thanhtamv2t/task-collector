@@ -18,7 +18,9 @@ import {
   Search,
   Send,
   Shield,
+  Trash2,
   Users,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -155,6 +157,22 @@ type DashboardData = {
   performance: PerformanceResponse | null;
 };
 
+type CleanDerivedResult = {
+  deletedReports: number;
+  deletedAiRuns: number;
+  deletedJobBatches: number;
+  deletedTaskEvents: number;
+  deletedTasks: number;
+  preservedMessages: boolean;
+};
+
+type Toast = {
+  id: number;
+  tone: 'success' | 'error' | 'info';
+  title: string;
+  description?: string;
+};
+
 type PerformanceRow = {
   periodStart: string;
   periodEnd: string;
@@ -250,6 +268,18 @@ export function App() {
   const [performanceMode, setPerformanceMode] = useState<'day' | 'week' | 'month'>('week');
   const [performancePage, setPerformancePage] = useState(1);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportDrawerOpen, setReportDrawerOpen] = useState(Boolean(initialReportId));
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [cleaningDerived, setCleaningDerived] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
+    const id = Date.now();
+    setToasts((current) => [...current, { ...toast, id }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((item) => item.id !== id));
+    }, 4200);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -302,12 +332,22 @@ export function App() {
     setError(null);
     try {
       await postJson(`/internal/jobs/${job}`);
+      pushToast({
+        tone: 'success',
+        title: 'Job queued',
+        description: job,
+      });
       await load();
     } catch (err) {
       if (err instanceof Error && err.message.startsWith('401')) {
         setUser(null);
       }
       setError(err instanceof Error ? err.message : `Unable to trigger ${job}`);
+      pushToast({
+        tone: 'error',
+        title: `Unable to trigger ${job}`,
+        description: err instanceof Error ? err.message : undefined,
+      });
       setLoading(false);
     }
   };
@@ -323,15 +363,55 @@ export function App() {
     try {
       const result = await postJson<{ reportId: string }>('/internal/dashboard/reports/generate', input);
       setSelectedReportId(result.reportId);
+      setReportDrawerOpen(true);
       setActive('reports');
+      pushToast({
+        tone: 'success',
+        title: 'Report generated',
+        description: 'Opened in drawer',
+      });
       await load();
     } catch (err) {
       if (err instanceof Error && err.message.startsWith('401')) {
         setUser(null);
       }
       setError(err instanceof Error ? err.message : 'Unable to generate report');
+      pushToast({
+        tone: 'error',
+        title: 'Unable to generate report',
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setGeneratingReport(false);
+    }
+  };
+
+  const cleanDerivedData = async () => {
+    setCleaningDerived(true);
+    setError(null);
+    try {
+      const result = await postJson<CleanDerivedResult>('/internal/dashboard/cleanup-derived');
+      setMaintenanceOpen(false);
+      setReportDrawerOpen(false);
+      setSelectedReportId(null);
+      pushToast({
+        tone: 'success',
+        title: 'Derived data cleaned',
+        description: `${result.deletedReports} reports, ${result.deletedAiRuns} AI runs, ${result.deletedJobBatches} jobs removed. Messages preserved.`,
+      });
+      await load();
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('401')) {
+        setUser(null);
+      }
+      setError(err instanceof Error ? err.message : 'Unable to clean derived data');
+      pushToast({
+        tone: 'error',
+        title: 'Cleanup failed',
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setCleaningDerived(false);
     }
   };
 
@@ -420,7 +500,14 @@ export function App() {
           </div>
         ) : null}
 
-        {active === 'overview' ? <Overview data={data} metrics={metrics} onRunJob={runJob} /> : null}
+        {active === 'overview' ? (
+          <Overview
+            data={data}
+            metrics={metrics}
+            onRunJob={runJob}
+            onOpenMaintenance={() => setMaintenanceOpen(true)}
+          />
+        ) : null}
         {active === 'performance' ? (
           <Performance
             performance={data.performance}
@@ -440,12 +527,27 @@ export function App() {
             selectedReportId={selectedReportId}
             generating={generatingReport}
             onGenerate={generateReport}
-            onSelectReport={setSelectedReportId}
+            onSelectReport={(reportId) => {
+              setSelectedReportId(reportId);
+              setReportDrawerOpen(true);
+            }}
           />
         ) : null}
         {active === 'messages' ? <Messages messages={filtered.messages} /> : null}
         {active === 'jobs' ? <Jobs jobs={filtered.jobs} onRunJob={runJob} /> : null}
       </main>
+      <ReportDrawer
+        report={data.reports.find((report) => report.id === selectedReportId) ?? null}
+        open={reportDrawerOpen}
+        onClose={() => setReportDrawerOpen(false)}
+      />
+      <MaintenanceDrawer
+        open={maintenanceOpen}
+        cleaning={cleaningDerived}
+        onClose={() => setMaintenanceOpen(false)}
+        onClean={cleanDerivedData}
+      />
+      <Toaster toasts={toasts} />
     </div>
   );
 }
@@ -478,10 +580,12 @@ function Overview({
   data,
   metrics,
   onRunJob,
+  onOpenMaintenance,
 }: {
   data: DashboardData;
   metrics: Metrics | null;
   onRunJob: (job: 'extract' | 'report' | 'retry-failed' | 'retention') => void;
+  onOpenMaintenance: () => void;
 }) {
   const cards = [
     { label: 'Messages collected', value: metrics?.messages.collected ?? 0, icon: MessageSquareText },
@@ -523,6 +627,9 @@ function Overview({
             <button type="button" onClick={() => onRunJob('extract')}>Run extraction</button>
             <button type="button" onClick={() => onRunJob('retry-failed')}>Retry failed</button>
             <button type="button" onClick={() => onRunJob('retention')}>Run retention</button>
+            <button type="button" className="danger-button" onClick={onOpenMaintenance}>
+              Clean derived data
+            </button>
           </div>
         </Panel>
       </div>
@@ -674,7 +781,6 @@ function Reports({
   onGenerate: (input: { groupId: string; periodStart: string; periodEnd: string; reportType: string }) => void;
   onSelectReport: (reportId: string) => void;
 }) {
-  const selectedReport = reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null;
   const defaultGroupId = groups[0]?.id ?? '';
   const [groupId, setGroupId] = useState(defaultGroupId);
   const [preset, setPreset] = useState<'today' | 'week' | 'full' | 'custom'>('week');
@@ -752,26 +858,126 @@ function Reports({
             report.groupTitle ?? 'Unknown',
             `${formatDate(report.periodStart)} - ${formatDate(report.periodEnd)}`,
             formatDate(report.createdAt),
-            <button key="open" type="button" onClick={() => onSelectReport(report.id)}>View</button>,
+            <button
+              key="open"
+              type="button"
+              className={selectedReportId === report.id ? 'active-row-button' : undefined}
+              onClick={() => onSelectReport(report.id)}
+            >
+              View
+            </button>,
           ])}
         />
       </Panel>
+    </section>
+  );
+}
 
-      {selectedReport ? (
-        <Panel title="Report Detail" icon={FileText}>
+function ReportDrawer({
+  report,
+  open,
+  onClose,
+}: {
+  report: ReportRow | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Drawer open={open} title="Report Detail" onClose={onClose}>
+      {report ? (
+        <>
           <div className="report-detail">
             <div>
-              <strong>{selectedReport.groupTitle ?? 'Unknown group'}</strong>
-              <span>{formatDateTime(selectedReport.periodStart)} - {formatDateTime(selectedReport.periodEnd)}</span>
+              <strong>{report.groupTitle ?? 'Unknown group'}</strong>
+              <span>{formatDateTime(report.periodStart)} - {formatDateTime(report.periodEnd)}</span>
             </div>
-            <StatusBadge value={selectedReport.status} />
+            <StatusBadge value={report.status} />
           </div>
-          <ReportInsightsPanel report={selectedReport} />
-          <MemberBreakdown report={selectedReport} />
-          {selectedReport.content ? <pre className="report-preview">{selectedReport.content}</pre> : null}
-        </Panel>
-      ) : null}
-    </section>
+          <ReportInsightsPanel report={report} />
+          <MemberBreakdown report={report} />
+          {report.content ? <pre className="report-preview">{report.content}</pre> : null}
+        </>
+      ) : (
+        <div className="empty">No report selected</div>
+      )}
+    </Drawer>
+  );
+}
+
+function MaintenanceDrawer({
+  open,
+  cleaning,
+  onClose,
+  onClean,
+}: {
+  open: boolean;
+  cleaning: boolean;
+  onClose: () => void;
+  onClean: () => void;
+}) {
+  return (
+    <Drawer open={open} title="Maintenance" onClose={onClose}>
+      <div className="maintenance-panel">
+        <div className="maintenance-icon">
+          <Trash2 size={20} />
+        </div>
+        <h3>Clean derived data</h3>
+        <p>
+          Deletes generated reports, AI runs, job batches, task events, and old task rows. Telegram
+          messages, groups, topics, and users are preserved.
+        </p>
+        <div className="maintenance-actions">
+          <button type="button" onClick={onClose}>Cancel</button>
+          <button type="button" className="danger-button solid" disabled={cleaning} onClick={onClean}>
+            {cleaning ? 'Cleaning' : 'Clean derived data'}
+          </button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+function Drawer({
+  open,
+  title,
+  children,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="drawer-layer" role="dialog" aria-modal="true" aria-label={title}>
+      <button className="drawer-scrim" type="button" aria-label="Close drawer" onClick={onClose} />
+      <aside className="drawer-panel">
+        <header className="drawer-header">
+          <h2>{title}</h2>
+          <button className="icon-button" type="button" title="Close" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+        <div className="drawer-body">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
+function Toaster({ toasts }: { toasts: Toast[] }) {
+  return (
+    <div className="toast-stack" aria-live="polite">
+      {toasts.map((toast) => (
+        <div className={`toast ${toast.tone}`} key={toast.id}>
+          <strong>{toast.title}</strong>
+          {toast.description ? <span>{toast.description}</span> : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
