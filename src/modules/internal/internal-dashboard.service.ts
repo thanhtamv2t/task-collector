@@ -104,6 +104,7 @@ export class InternalDashboardService {
         telegramChatId: reports.telegramChatId,
         telegramThreadId: reports.telegramThreadId,
         telegramMessageId: reports.telegramMessageId,
+        content: reports.content,
         sentAt: reports.sentAt,
         createdAt: reports.createdAt,
       })
@@ -176,5 +177,83 @@ export class InternalDashboardService {
       .leftJoin(telegramTopics, eq(telegramTopics.id, aiRuns.topicId))
       .orderBy(desc(aiRuns.startedAt))
       .limit(limit);
+  }
+
+  async performance(input: { mode: string; page: number; pageSize: number }) {
+    const mode = ['day', 'week', 'month'].includes(input.mode) ? input.mode : 'week';
+    const page = Math.max(1, input.page);
+    const pageSize = Math.min(50, Math.max(5, input.pageSize));
+    const offset = (page - 1) * pageSize;
+    const periodUnit = mode === 'day' ? 'day' : mode === 'month' ? 'month' : 'week';
+
+    const rowsResult = await this.database.db.execute(sql.raw(`
+      with grouped as (
+        select
+          date_trunc('${periodUnit}', te.occurred_at) as period_start,
+          date_trunc('${periodUnit}', te.occurred_at) + interval '1 ${periodUnit}' as period_end,
+          te.actor_user_id,
+          coalesce(u.display_name, u.username, u.telegram_user_id, 'Unknown') as member_name,
+          u.username,
+          u.telegram_user_id,
+          count(*)::int as total_items,
+          count(*) filter (where te.event_type = 'task_completed')::int as completed_items,
+          count(*) filter (where te.event_type = 'task_progress')::int as progress_items,
+          count(*) filter (where te.event_type = 'blocker')::int as blocker_items,
+          count(*) filter (where te.event_type = 'decision')::int as decision_items,
+          max(te.occurred_at) as last_activity_at,
+          jsonb_agg(
+            jsonb_build_object(
+              'summary', te.summary,
+              'eventType', te.event_type,
+              'sourceMessageIds', te.source_message_ids,
+              'occurredAt', te.occurred_at
+            )
+            order by te.occurred_at desc
+          ) as items
+        from task_events te
+        left join telegram_users u on u.id = te.actor_user_id
+        where te.event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
+        group by period_start, period_end, te.actor_user_id, member_name, u.username, u.telegram_user_id
+      )
+      select *
+      from grouped
+      order by period_start desc, member_name asc
+      limit ${pageSize}
+      offset ${offset}
+    `));
+    const countResult = await this.database.db.execute(sql.raw(`
+      select count(*)::int as total
+      from (
+        select date_trunc('${periodUnit}', te.occurred_at), te.actor_user_id
+        from task_events te
+        where te.event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
+        group by 1, 2
+      ) rows
+    `));
+
+    const rows = (rowsResult as unknown as { rows: Array<Record<string, unknown>> }).rows;
+    const total = Number((countResult as unknown as { rows: Array<{ total: number }> }).rows[0]?.total ?? 0);
+
+    return {
+      mode,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      rows: rows.map((row) => ({
+        periodStart: row.period_start,
+        periodEnd: row.period_end,
+        memberName: row.member_name,
+        username: row.username,
+        telegramUserId: row.telegram_user_id,
+        totalItems: row.total_items,
+        completedItems: row.completed_items,
+        progressItems: row.progress_items,
+        blockerItems: row.blocker_items,
+        decisionItems: row.decision_items,
+        lastActivityAt: row.last_activity_at,
+        items: Array.isArray(row.items) ? row.items.slice(0, 8) : [],
+      })),
+    };
   }
 }

@@ -55,6 +55,15 @@ export class JobSchedulerService implements OnModuleInit {
       { tz: this.app.timezone },
     );
 
+    if (this.app.dailyReportReminderSchedule) {
+      await this.pgBoss.client.schedule(
+        JOB_QUEUE_NAMES.dailyReportReminder,
+        this.app.dailyReportReminderSchedule,
+        { requestedBy: 'schedule' },
+        { tz: this.app.timezone },
+      );
+    }
+
     this.logger.log(`Registered ${schedules.length} report schedules`);
   }
 }

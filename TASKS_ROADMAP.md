@@ -108,6 +108,15 @@
 - [x] Telegram Desktop JSON import script for backfilling old messages.
 - [x] Docker import wrapper rebuilds the API image before importing Telegram Desktop exports.
 - [x] Docker pending-message processor triggers extraction/report for the full pending import range.
+- [x] Group setup/import backfills report chat destination so batch reports can be sent.
+- [x] Reports are addressed to the first configured Telegram admin instead of the source group.
+- [x] Daily-report extraction semantics and weekly performance reporting by user.
+- [x] 21:00 daily report reminder tags non-admin group members missing today's report.
+- [x] Dashboard performance calendar supports day/week/month aggregation with pagination.
+- [x] Dashboard-triggered reports are created for dashboard review rather than Telegram delivery.
+- [x] Bot slash commands are restricted to configured Telegram admins.
+- [x] Report creation notifies Telegram admins privately with a dashboard link.
+- [x] Telegram private admin chat can trigger daily/weekly report creation.
 - [x] Telegram API runtime check script for bot token/webhook/test chat.
 - [x] OpenRouter runtime check script for API key/model JSON response.
 - [x] Safe shell `.env` loader for cron values containing spaces.

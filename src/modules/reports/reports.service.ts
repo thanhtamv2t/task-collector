@@ -1,4 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ConfigType } from '@nestjs/config';
+import { appConfig } from '../../config/app.config';
+import { telegramConfig } from '../../config/telegram.config';
 import { TelegramBotService } from '../telegram/telegram-bot.service';
 import { ReportFormatterService } from './report-formatter.service';
 import { ReportsRepository } from './reports.repository';
@@ -10,12 +13,18 @@ export class ReportsService {
     private readonly repository: ReportsRepository,
     private readonly formatter: ReportFormatterService,
     private readonly telegram: TelegramBotService,
+    @Inject(appConfig.KEY)
+    private readonly app: ConfigType<typeof appConfig>,
+    @Inject(telegramConfig.KEY)
+    private readonly telegramSettings: ConfigType<typeof telegramConfig>,
   ) {}
 
   async generateBatchReports(input: {
     periodStart: Date;
     periodEnd: Date;
     groupId: string | null;
+    sendToTelegram?: boolean;
+    notifyAdmins?: boolean;
   }): Promise<{ generated: number; sent: number }> {
     const groups = input.groupId
       ? (await this.repository.listGroupsWithEvents(input.periodStart, input.periodEnd)).filter(
@@ -33,8 +42,9 @@ export class ReportsService {
         periodStart: input.periodStart,
         periodEnd: input.periodEnd,
         reportType: 'batch',
-        telegramChatId: group.reportChatId,
+        telegramChatId: input.sendToTelegram === true ? group.reportChatId : null,
         telegramThreadId: null,
+        notifyAdmins: input.notifyAdmins === true,
       });
       generated += 1;
       if (result.sent) {
@@ -54,6 +64,7 @@ export class ReportsService {
     telegramChatId: string | null;
     telegramThreadId: string | null;
     topicId?: string | null;
+    notifyAdmins?: boolean;
   }): Promise<{ content: string; reportId: string; sent: boolean }> {
     const items =
       input.topicId === undefined
@@ -86,6 +97,15 @@ export class ReportsService {
       telegramThreadId: input.telegramThreadId,
     });
 
+    if (input.notifyAdmins) {
+      await this.notifyAdmins({
+        reportId,
+        title: input.title,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+      });
+    }
+
     if (!input.telegramChatId) {
       return { content, reportId, sent: false };
     }
@@ -106,6 +126,25 @@ export class ReportsService {
     });
 
     return { content, reportId, sent: true };
+  }
+
+  private async notifyAdmins(input: {
+    reportId: string;
+    title: string;
+    periodStart: Date;
+    periodEnd: Date;
+  }): Promise<void> {
+    const baseUrl = this.app.dashboardUrl.replace(/\/$/, '');
+    const link = `${baseUrl}/?reportId=${encodeURIComponent(input.reportId)}`;
+    const message = [
+      `Performance report created: ${input.title}`,
+      `Period: ${input.periodStart.toISOString()} -> ${input.periodEnd.toISOString()}`,
+      `View: ${link}`,
+    ].join('\n');
+
+    for (const adminId of this.telegramSettings.adminTelegramUserIds) {
+      await this.telegram.sendMessage(adminId, message, null);
+    }
   }
 
   private structure(items: ReportItem[]): StructuredReport {

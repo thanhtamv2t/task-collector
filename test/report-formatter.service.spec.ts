@@ -10,22 +10,22 @@ describe('ReportFormatterService', () => {
       periodStart: new Date('2026-07-15T00:00:00.000Z'),
       periodEnd: new Date('2026-07-15T06:00:00.000Z'),
       structured: {
-        completed: [],
-        inProgress: [],
-        newTasks: [
+        completed: [
           {
             taskId: 'task-1',
             taskTitle: 'Finish report generator',
-            eventType: 'task_created',
-          summary: 'A task was created.',
-          topicName: 'Backend',
-          actorDisplayName: 'Alice',
-          assigneeDisplayName: 'Alice',
-          sourceMessageIds: [1002],
+            eventType: 'task_completed',
+            summary: 'A task was completed.',
+            topicName: 'Backend',
+            actorDisplayName: 'Alice',
+            assigneeDisplayName: 'Alice',
+            sourceMessageIds: [1002],
             confidence: '0.900',
             createdAt: new Date('2026-07-15T01:00:00.000Z'),
           },
         ],
+        inProgress: [],
+        newTasks: [],
         blockers: [],
         decisions: [],
         needsReview: [],
@@ -39,18 +39,30 @@ describe('ReportFormatterService', () => {
         byUser: [
           {
             name: 'Alice',
-            items: [],
+            items: [
+              {
+                taskId: 'task-1',
+                taskTitle: 'Finish report generator',
+                eventType: 'task_completed',
+                summary: 'A task was completed.',
+                topicName: 'Backend',
+                actorDisplayName: 'Alice',
+                assigneeDisplayName: 'Alice',
+                sourceMessageIds: [1002],
+                confidence: '0.900',
+                createdAt: new Date('2026-07-15T01:00:00.000Z'),
+              },
+            ],
           },
         ],
       },
     });
 
+    expect(content).toContain('Weekly performance report');
+    expect(content).toContain('Performance theo user');
     expect(content).toContain('✅ Hoàn thành');
-    expect(content).toContain('🆕 Task mới');
     expect(content).toContain('Finish report generator \\[src: 1002\\]');
-    expect(content).toContain('⚠️ Cần xác nhận');
-    expect(content).toContain('Theo topic');
-    expect(content).toContain('Theo user');
+    expect(content).toContain('⚠️ Cần review AI');
   });
 
   it('splits long Telegram messages', () => {

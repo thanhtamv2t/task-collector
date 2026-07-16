@@ -13,6 +13,7 @@ import { ReportJob } from './report.job';
 import { RetryFailedJob } from './retry-failed.job';
 import { RetentionJob } from './retention.job';
 import { AlertService } from './alert.service';
+import { DailyReportReminderJob } from './daily-report-reminder.job';
 
 @Module({
   imports: [AiModule, TasksModule, ReportsModule],
@@ -26,6 +27,7 @@ import { AlertService } from './alert.service';
     RetryFailedJob,
     RetentionJob,
     AlertService,
+    DailyReportReminderJob,
     JobWorkerService,
     JobSchedulerService,
   ],

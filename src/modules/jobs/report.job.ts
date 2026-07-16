@@ -38,6 +38,8 @@ export class ReportJob {
       periodStart,
       periodEnd,
       groupId: payload.groupId,
+      sendToTelegram: false,
+      notifyAdmins: true,
     });
     await this.repository.markBatchCompleted(batch.id, []);
 

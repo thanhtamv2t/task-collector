@@ -384,6 +384,122 @@ button:disabled {
   padding: 0 12px;
 }
 
+.panel-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.segmented,
+.pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.segmented button,
+.pagination button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.segmented button.active {
+  color: var(--primary);
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.pagination span {
+  color: var(--muted);
+  font-size: 13px;
+  min-width: 88px;
+  text-align: center;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.performance-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+  min-width: 0;
+}
+
+.performance-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.performance-head strong,
+.performance-head span {
+  display: block;
+}
+
+.performance-head span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.score-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.score-row span {
+  background: var(--panel-subtle);
+  border-radius: 6px;
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score-row strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 18px;
+  margin-top: 2px;
+}
+
+.work-list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.work-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.report-preview {
+  margin: 0;
+  padding: 14px;
+  max-height: 480px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -501,26 +617,29 @@ tr:last-child td {
 
   .topbar,
   .topbar-actions,
-  .token-bar {
+  .session-bar,
+  .panel-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
 
   .search-box input,
-  .token-bar input {
+  .session-bar input {
     min-width: 0;
     width: 100%;
   }
 
   .metric-grid,
   .split-grid,
+  .performance-grid,
   .button-grid,
   .button-grid.compact,
+  .score-row,
   .nav-list {
     grid-template-columns: 1fr;
   }
 
-  .token-bar span {
+  .session-bar span {
     margin-left: 0;
   }
 }

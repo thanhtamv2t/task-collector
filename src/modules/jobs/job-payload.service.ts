@@ -4,11 +4,15 @@ import { JobData, JobPayload, PeriodInput } from './jobs.types';
 
 @Injectable()
 export class JobPayloadService {
-  build(input: PeriodInput, requestedBy: JobPayload['requestedBy']): JobPayload {
+  build(
+    input: PeriodInput,
+    requestedBy: JobPayload['requestedBy'],
+    defaultWindowHours = DEFAULT_JOB_WINDOW_HOURS,
+  ): JobPayload {
     const periodEnd = input.periodEnd ? new Date(input.periodEnd) : new Date();
     const periodStart = input.periodStart
       ? new Date(input.periodStart)
-      : new Date(periodEnd.getTime() - DEFAULT_JOB_WINDOW_HOURS * 60 * 60 * 1000);
+      : new Date(periodEnd.getTime() - defaultWindowHours * 60 * 60 * 1000);
 
     if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime())) {
       throw new Error('Invalid periodStart or periodEnd');

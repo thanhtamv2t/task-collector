@@ -12,18 +12,15 @@ export class ReportFormatterService {
     structured: StructuredReport;
   }): string {
     return [
-      `*Daily task report:* ${this.escape(input.title)}`,
+      `*Weekly performance report:* ${this.escape(input.title)}`,
       `*Period:* ${this.escape(input.periodStart.toISOString())} → ${this.escape(input.periodEnd.toISOString())}`,
       '',
+      this.performanceByUser(input.structured.byUser),
       this.section('✅ Hoàn thành', input.structured.completed),
       this.section('🔄 Đang thực hiện', input.structured.inProgress),
-      this.section('🆕 Task mới', input.structured.newTasks),
       this.section('⛔ Blocker', input.structured.blockers),
       this.section('📌 Quyết định', input.structured.decisions),
-      this.section('⚠️ Cần xác nhận', input.structured.needsReview),
-      this.section('👤 Chưa xác định người phụ trách', input.structured.unassigned),
-      this.groupedSection('Theo topic', input.structured.byTopic),
-      this.groupedSection('Theo user', input.structured.byUser),
+      this.section('⚠️ Cần review AI', input.structured.needsReview),
     ]
       .filter(Boolean)
       .join('\n');
@@ -82,6 +79,30 @@ export class ReportFormatterService {
         `_${this.escape(group.name)}_`,
         ...group.items.map((item) => `\\- ${this.escape(item.taskTitle ?? item.summary)}`),
       ]),
+      '',
+    ].join('\n');
+  }
+
+  private performanceByUser(groups: Array<{ name: string; items: ReportItem[] }>): string {
+    if (groups.length === 0) {
+      return `*${this.escape('Performance theo user')}*\n\\- Không có dữ liệu daily report`;
+    }
+
+    return [
+      `*${this.escape('Performance theo user')}*`,
+      ...groups.map((group) => {
+        const completed = group.items.filter((item) => item.eventType === 'task_completed');
+        const progress = group.items.filter((item) => item.eventType === 'task_progress');
+        const blockers = group.items.filter((item) => item.eventType === 'blocker');
+        const decisions = group.items.filter((item) => item.eventType === 'decision');
+        const sample = completed.slice(0, 6).map((item) => `  • ${this.escape(item.taskTitle ?? item.summary)}`);
+
+        return [
+          `_${this.escape(group.name)}_`,
+          `\\- Done: ${completed.length} \\| Progress: ${progress.length} \\| Blocker: ${blockers.length} \\| Decision: ${decisions.length}`,
+          ...sample,
+        ].join('\n');
+      }),
       '',
     ].join('\n');
   }

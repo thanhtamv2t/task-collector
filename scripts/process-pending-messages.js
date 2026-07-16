@@ -26,10 +26,20 @@ async function main() {
   try {
     const statusBefore = await messageStatus(client);
     console.log('[process-pending] message status before:', statusBefore);
+    await ensureReportDestinations(client);
 
     const range = await pendingRange(client);
     if (!range || Number(range.count) === 0) {
-      console.log('[process-pending] No pending messages.');
+      console.log('[process-pending] No pending messages. Checking task event range for report backfill.');
+      const eventRange = await taskEventRange(client);
+      if (!eventRange || Number(eventRange.count) === 0) {
+        console.log('[process-pending] No task events found.');
+        return;
+      }
+
+      const payload = payloadFromRange(eventRange);
+      console.log('[process-pending] triggering report from task events:', payload);
+      await post(resolvedApiUrl, '/internal/jobs/report', payload);
       return;
     }
 
@@ -38,15 +48,7 @@ async function main() {
       console.log('[process-pending] Extraction will complete but release messages back to pending.');
     }
 
-    const periodStart = new Date(range.period_start);
-    periodStart.setSeconds(periodStart.getSeconds() - 1);
-    const periodEnd = new Date(range.period_end);
-    periodEnd.setSeconds(periodEnd.getSeconds() + 1);
-
-    const payload = {
-      periodStart: periodStart.toISOString(),
-      periodEnd: periodEnd.toISOString(),
-    };
+    const payload = payloadFromRange(range);
 
     console.log('[process-pending] triggering extraction:', payload);
     await post(resolvedApiUrl, '/internal/jobs/extract', payload);
@@ -86,6 +88,53 @@ async function pendingRange(client) {
   `);
 
   return result.rows[0];
+}
+
+async function taskEventRange(client) {
+  const result = await client.query(`
+    select count(*)::int as count, min(created_at) as period_start, max(created_at) as period_end
+    from task_events
+  `);
+
+  return result.rows[0];
+}
+
+async function ensureReportDestinations(client) {
+  const reportChatId = firstAdminTelegramUserId();
+  if (!reportChatId) {
+    console.log('[process-pending] WARN: ADMIN_TELEGRAM_USER_IDS is empty; reports will be saved but not sent.');
+    return;
+  }
+
+  const result = await client.query(`
+    update telegram_groups
+    set report_chat_id = $1, updated_at = now()
+    where report_chat_id is distinct from $1
+    returning telegram_chat_id
+  `, [reportChatId]);
+
+  if (result.rowCount > 0) {
+    console.log(`[process-pending] Set report_chat_id=${reportChatId} for ${result.rowCount} group(s).`);
+  }
+}
+
+function firstAdminTelegramUserId() {
+  return (process.env.ADMIN_TELEGRAM_USER_IDS ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)[0] ?? null;
+}
+
+function payloadFromRange(range) {
+  const periodStart = new Date(range.period_start);
+  periodStart.setSeconds(periodStart.getSeconds() - 1);
+  const periodEnd = new Date(range.period_end);
+  periodEnd.setSeconds(periodEnd.getSeconds() + 1);
+
+  return {
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+  };
 }
 
 async function waitUntilSettled(client, timeoutMs) {

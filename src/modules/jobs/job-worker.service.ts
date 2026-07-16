@@ -10,6 +10,7 @@ import { ReportJob } from './report.job';
 import { RetryFailedJob } from './retry-failed.job';
 import { RetentionJob } from './retention.job';
 import { AlertService } from './alert.service';
+import { DailyReportReminderJob } from './daily-report-reminder.job';
 
 @Injectable()
 export class JobWorkerService implements OnModuleInit {
@@ -23,6 +24,7 @@ export class JobWorkerService implements OnModuleInit {
     private readonly retryFailedJob: RetryFailedJob,
     private readonly retentionJob: RetentionJob,
     private readonly alertService: AlertService,
+    private readonly dailyReportReminderJob: DailyReportReminderJob,
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
   ) {}
@@ -54,6 +56,10 @@ export class JobWorkerService implements OnModuleInit {
       this.pgBoss.client.work<JobData>(JOB_QUEUE_NAMES.retention, async ([job]) => {
         this.logger.log(`Running retention job ${job.id}`);
         return this.retentionJob.handle();
+      }),
+      this.pgBoss.client.work<JobData>(JOB_QUEUE_NAMES.dailyReportReminder, async ([job]) => {
+        this.logger.log(`Running daily report reminder job ${job.id}`);
+        return this.dailyReportReminderJob.handle();
       }),
       this.pgBoss.client.work<JobData>(JOB_QUEUE_NAMES.deadLetter, async ([job]) => {
         this.logger.error(`Dead-letter job received ${job.id}`);

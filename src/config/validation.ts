@@ -21,6 +21,7 @@ const envSchema = z.object({
   GITHUB_ADMIN_LOGIN: z.string().optional().default(''),
   GITHUB_ADMIN_ID: z.string().optional().default(''),
   ALERT_WEBHOOK_URL: z.string().optional().default(''),
+  DAILY_REPORT_REMINDER_SCHEDULE: z.string().optional().default('0 21 * * *'),
   OPENROUTER_API_KEY: z.string().optional().default(''),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENROUTER_MODEL: z.string().optional().default(''),

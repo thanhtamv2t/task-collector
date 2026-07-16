@@ -60,8 +60,9 @@ describe('buildExtractionPrompt', () => {
       ],
     });
 
-    expect(prompt).toContain('Only extract content that is directly evidenced');
+    expect(prompt).toContain('daily work report items');
+    expect(prompt).toContain('The actor/assignee must be the sender');
     expect(prompt).toContain('message_id: 1002');
-    expect(prompt).toContain('Open tasks:');
+    expect(prompt).toContain('Existing tasks are not authoritative');
   });
 });

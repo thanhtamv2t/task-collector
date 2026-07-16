@@ -19,6 +19,16 @@ export interface EnsureBatchInput {
   periodEnd: Date;
 }
 
+export interface DailyReportReminderGroup {
+  telegramChatId: string;
+  title: string | null;
+  users: Array<{
+    telegramUserId: string;
+    username: string | null;
+    displayName: string | null;
+  }>;
+}
+
 @Injectable()
 export class JobsRepository {
   constructor(private readonly database: DatabaseService) {}
@@ -263,5 +273,69 @@ export class JobsRepository {
         updatedAt: new Date(),
       })
       .where(inArray(messages.id, messageIds));
+  }
+
+  async listDailyReportReminderTargets(input: {
+    since: Date;
+    adminTelegramUserIds: string[];
+  }): Promise<DailyReportReminderGroup[]> {
+    const adminIds = input.adminTelegramUserIds.length ? input.adminTelegramUserIds : ['__none__'];
+    const result = await this.database.db.execute(sql`
+      with group_members as (
+        select distinct
+          m.group_id,
+          u.telegram_user_id,
+          u.username,
+          u.display_name
+        from messages m
+        inner join telegram_users u on u.id = m.user_id
+        where u.telegram_user_id <> all(${adminIds})
+      ),
+      reporters_today as (
+        select distinct m.group_id, u.telegram_user_id
+        from messages m
+        inner join telegram_users u on u.id = m.user_id
+        where m.sent_at >= ${input.since}
+      )
+      select
+        g.telegram_chat_id as "telegramChatId",
+        g.title,
+        gm.telegram_user_id as "telegramUserId",
+        gm.username,
+        gm.display_name as "displayName"
+      from group_members gm
+      inner join telegram_groups g on g.id = gm.group_id
+      left join reporters_today rt
+        on rt.group_id = gm.group_id
+       and rt.telegram_user_id = gm.telegram_user_id
+      where g.is_active = true
+        and rt.telegram_user_id is null
+      order by g.title nulls last, gm.display_name nulls last, gm.telegram_user_id
+    `);
+
+    const rows = (result as unknown as { rows: Array<{
+      telegramChatId: string;
+      title: string | null;
+      telegramUserId: string;
+      username: string | null;
+      displayName: string | null;
+    }> }).rows;
+    const grouped = new Map<string, DailyReportReminderGroup>();
+
+    for (const row of rows) {
+      const group = grouped.get(row.telegramChatId) ?? {
+        telegramChatId: row.telegramChatId,
+        title: row.title,
+        users: [],
+      };
+      group.users.push({
+        telegramUserId: row.telegramUserId,
+        username: row.username,
+        displayName: row.displayName,
+      });
+      grouped.set(row.telegramChatId, group);
+    }
+
+    return Array.from(grouped.values());
   }
 }

@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { appConfig } from '../../config/app.config';
@@ -243,6 +244,22 @@ export class InternalDashboardController {
   async aiRuns(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
     this.assertAuthorized(token, cookie);
     return this.dashboard.aiRuns();
+  }
+
+  @Get('performance')
+  async performance(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+    @Query('mode') mode = 'week',
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '12',
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.performance({
+      mode,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
   }
 
   private assertAuthorized(token: string | undefined, cookie: string | undefined): void {

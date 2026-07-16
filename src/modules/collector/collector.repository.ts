@@ -17,12 +17,18 @@ export class CollectorRepository {
     return group ?? null;
   }
 
-  async upsertGroup(input: { chatId: string; title: string | null; timezone: string }) {
+  async upsertGroup(input: {
+    chatId: string;
+    title: string | null;
+    timezone: string;
+    reportChatId: string | null;
+  }) {
     const [group] = await this.database.db
       .insert(telegramGroups)
       .values({
         telegramChatId: input.chatId,
         title: input.title,
+        reportChatId: input.reportChatId,
         timezone: input.timezone,
         isActive: true,
         updatedAt: new Date(),
@@ -31,6 +37,7 @@ export class CollectorRepository {
         target: telegramGroups.telegramChatId,
         set: {
           title: input.title,
+          reportChatId: input.reportChatId,
           isActive: true,
           updatedAt: new Date(),
         },

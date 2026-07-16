@@ -8,7 +8,7 @@ Implemented MVP paths:
 - `POST /webhooks/telegram`
 - `GET /health`, `/health/live`, `/health/ready`
 - PostgreSQL schema for groups, topics, users, messages, jobs, AI runs, tasks, task events, and reports
-- Telegram commands: `/setup`, `/topics`, `/watch`, `/unwatch`, `/settings`, `/report`, `/report_today`, `/tasks`, `/done`, `/assign`, `/help`
+- Telegram commands: `/setup`, `/topics`, `/watch`, `/unwatch`, `/settings`, `/report`, `/report_week`, `/report_today`, `/tasks`, `/done`, `/assign`, `/help`
 - pg-boss extraction/report/retry/retention jobs
 - OpenRouter structured extraction with task matching and report generation
 - Docker Compose with API, worker, and PostgreSQL 17
@@ -86,7 +86,7 @@ Messages in watched topics will then be stored with raw Telegram payloads and no
 
 `/settings` shows group configuration.
 
-`/report` sends a report for the last six hours.
+`/report` and `/report_week` create the current weekly performance report.
 
 `/report_today` sends a report from the start of the configured timezone day.
 
@@ -271,6 +271,24 @@ Admin commands:
 
 Reports use Telegram MarkdownV2 escaping and are split into multiple Telegram messages when they
 are long.
+
+Daily report reminders run at 21:00 by default and tag non-admin members who have not sent a report
+today:
+
+```bash
+DAILY_REPORT_REMINDER_SCHEDULE=0 21 * * *
+```
+
+Batch reports created from the dashboard/internal job are saved for dashboard review instead of
+being pushed to Telegram. When a report is created, the bot sends configured Telegram admins a
+private notification with a dashboard link. Admins can also create reports from a private chat with
+the bot:
+
+```text
+/report
+/report_week
+/report_today
+```
 
 ## Telegram Desktop Import
 

@@ -32,17 +32,17 @@ export class CollectorService {
   ) {}
 
   async collect(message: NormalizedTelegramMessage): Promise<CollectorResult> {
+    if (message.text.startsWith('/')) {
+      await this.handleCommand(message);
+      return 'command_handled';
+    }
+
     if (!['group', 'supergroup'].includes(message.chatType)) {
       return 'ignored';
     }
 
     if (message.from?.isBot) {
       return 'ignored';
-    }
-
-    if (message.text.startsWith('/')) {
-      await this.handleCommand(message);
-      return 'command_handled';
     }
 
     const group = await this.repository.findGroupByChatId(message.chatId);
@@ -77,6 +77,11 @@ export class CollectorService {
       return;
     }
 
+    if (message.chatType === 'private') {
+      await this.handlePrivateCommand(message, command);
+      return;
+    }
+
     switch (command) {
       case '/setup':
         await this.setup(message);
@@ -94,10 +99,13 @@ export class CollectorService {
         await this.settings(message);
         break;
       case '/report':
-        await this.report(message, false);
+        await this.report(message, 'week');
+        break;
+      case '/report_week':
+        await this.report(message, 'week');
         break;
       case '/report_today':
-        await this.report(message, true);
+        await this.report(message, 'today');
         break;
       case '/tasks':
         await this.tasksList(message);
@@ -124,11 +132,59 @@ export class CollectorService {
     return this.telegram.adminTelegramUserIds.includes(message.from.telegramUserId);
   }
 
+  private async handlePrivateCommand(
+    message: NormalizedTelegramMessage,
+    command: string | undefined,
+  ): Promise<void> {
+    switch (command) {
+      case '/report':
+      case '/report_week':
+        await this.generatePrivateReport(message, 'week');
+        break;
+      case '/report_today':
+        await this.generatePrivateReport(message, 'today');
+        break;
+      case '/help':
+      default:
+        await this.bot.sendMessage(
+          message.chatId,
+          ['Private admin commands:', '/report hoặc /report_week', '/report_today', '/help'].join('\n'),
+          null,
+        );
+    }
+  }
+
+  private async generatePrivateReport(
+    message: NormalizedTelegramMessage,
+    mode: 'today' | 'week',
+  ): Promise<void> {
+    const periodEnd = new Date();
+    const periodStart =
+      mode === 'today'
+        ? this.startOfTodayInTimezone(periodEnd, this.app.timezone)
+        : this.startOfWeekInTimezone(periodEnd, this.app.timezone);
+
+    const result = await this.reports.generateBatchReports({
+      periodStart,
+      periodEnd,
+      groupId: null,
+      sendToTelegram: false,
+      notifyAdmins: true,
+    });
+
+    await this.bot.sendMessage(
+      message.chatId,
+      `Created ${result.generated} report(s). Check dashboard: ${this.app.dashboardUrl}`,
+      null,
+    );
+  }
+
   private async setup(message: NormalizedTelegramMessage): Promise<void> {
     await this.repository.upsertGroup({
       chatId: message.chatId,
       title: message.chatTitle,
       timezone: this.app.timezone,
+      reportChatId: this.reportChatId(),
     });
 
     await this.bot.sendMessage(message.chatId, 'Group registered.', message.threadId);
@@ -201,7 +257,7 @@ export class CollectorService {
     );
   }
 
-  private async report(message: NormalizedTelegramMessage, todayOnly: boolean): Promise<void> {
+  private async report(message: NormalizedTelegramMessage, mode: 'today' | 'week'): Promise<void> {
     const group = await this.repository.findGroupByChatId(message.chatId);
 
     if (!group) {
@@ -210,9 +266,10 @@ export class CollectorService {
     }
 
     const periodEnd = new Date();
-    const periodStart = todayOnly
-      ? this.startOfTodayInTimezone(periodEnd, this.app.timezone)
-      : new Date(periodEnd.getTime() - 6 * 60 * 60 * 1000);
+    const periodStart =
+      mode === 'today'
+        ? this.startOfTodayInTimezone(periodEnd, this.app.timezone)
+        : this.startOfWeekInTimezone(periodEnd, this.app.timezone);
     const topic =
       message.threadId === null ? null : await this.repository.findTopic(group.id, message.threadId);
 
@@ -221,11 +278,15 @@ export class CollectorService {
       title: group.title ?? message.chatTitle ?? message.chatId,
       periodStart,
       periodEnd,
-      reportType: todayOnly ? 'today' : 'manual',
-      telegramChatId: message.chatId,
-      telegramThreadId: message.threadId,
+      reportType: mode === 'today' ? 'daily_performance' : 'weekly_performance',
+      telegramChatId: this.reportChatId(),
+      telegramThreadId: null,
       topicId: message.threadId === null ? undefined : topic?.id,
     });
+  }
+
+  private reportChatId(): string | null {
+    return this.telegram.adminTelegramUserIds[0] ?? null;
   }
 
   private async tasksList(message: NormalizedTelegramMessage): Promise<void> {
@@ -324,7 +385,7 @@ export class CollectorService {
         '/watch',
         '/unwatch',
         '/settings',
-        '/report',
+        '/report hoặc /report_week',
         '/report_today',
         '/tasks',
         '/done <task-id>',
@@ -354,6 +415,21 @@ export class CollectorService {
   }
 
   private startOfTodayInTimezone(now: Date, timezone: string): Date {
+    return this.startOfLocalDay(now, timezone);
+  }
+
+  private startOfWeekInTimezone(now: Date, timezone: string): Date {
+    const startOfToday = this.startOfLocalDay(now, timezone);
+    const weekday = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      weekday: 'short',
+    }).format(now);
+    const weekdayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+    const daysSinceMonday = weekdayIndex <= 0 ? 6 : weekdayIndex - 1;
+    return new Date(startOfToday.getTime() - daysSinceMonday * 24 * 60 * 60 * 1000);
+  }
+
+  private startOfLocalDay(now: Date, timezone: string): Date {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       year: 'numeric',

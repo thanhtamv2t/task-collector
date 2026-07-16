@@ -2,6 +2,7 @@ import {
   Activity,
   Bot,
   BrainCircuit,
+  CalendarDays,
   CheckCircle2,
   CircleAlert,
   Clock3,
@@ -74,6 +75,7 @@ type ReportRow = {
   periodStart: string;
   periodEnd: string;
   telegramMessageId: string | null;
+  content: string | null;
   sentAt: string | null;
   createdAt: string;
 };
@@ -133,6 +135,36 @@ type DashboardData = {
   messages: MessageRow[];
   jobs: JobRow[];
   aiRuns: AiRunRow[];
+  performance: PerformanceResponse | null;
+};
+
+type PerformanceRow = {
+  periodStart: string;
+  periodEnd: string;
+  memberName: string;
+  username: string | null;
+  telegramUserId: string | null;
+  totalItems: number;
+  completedItems: number;
+  progressItems: number;
+  blockerItems: number;
+  decisionItems: number;
+  lastActivityAt: string;
+  items: Array<{
+    summary: string;
+    eventType: string;
+    sourceMessageIds: number[];
+    occurredAt: string;
+  }>;
+};
+
+type PerformanceResponse = {
+  mode: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  rows: PerformanceRow[];
 };
 
 const initialData: DashboardData = {
@@ -144,10 +176,12 @@ const initialData: DashboardData = {
   messages: [],
   jobs: [],
   aiRuns: [],
+  performance: null,
 };
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: Gauge },
+  { id: 'performance', label: 'Performance', icon: CalendarDays },
   { id: 'groups', label: 'Groups', icon: Users },
   { id: 'tasks', label: 'Tasks', icon: ListChecks },
   { id: 'reports', label: 'Reports', icon: FileText },
@@ -189,19 +223,23 @@ async function postJson<T>(path: string): Promise<T> {
 }
 
 export function App() {
-  const [active, setActive] = useState<SectionId>('overview');
+  const initialReportId = new URLSearchParams(window.location.search).get('reportId');
+  const [active, setActive] = useState<SectionId>(initialReportId ? 'reports' : 'overview');
+  const [selectedReportId] = useState<string | null>(initialReportId);
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
   const [data, setData] = useState<DashboardData>(initialData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [performanceMode, setPerformanceMode] = useState<'day' | 'week' | 'month'>('week');
+  const [performancePage, setPerformancePage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [metrics, groups, topics, tasks, reports, messages, jobs, aiRuns] = await Promise.all([
+      const [metrics, groups, topics, tasks, reports, messages, jobs, aiRuns, performance] = await Promise.all([
         getJson<Metrics>('/internal/metrics'),
         getJson<GroupRow[]>('/internal/dashboard/groups'),
         getJson<TopicRow[]>('/internal/dashboard/topics'),
@@ -210,8 +248,11 @@ export function App() {
         getJson<MessageRow[]>('/internal/dashboard/messages'),
         getJson<JobRow[]>('/internal/dashboard/jobs'),
         getJson<AiRunRow[]>('/internal/dashboard/ai-runs'),
+        getJson<PerformanceResponse>(
+          `/internal/dashboard/performance?mode=${performanceMode}&page=${performancePage}&pageSize=12`,
+        ),
       ]);
-      setData({ metrics, groups, topics, tasks, reports, messages, jobs, aiRuns });
+      setData({ metrics, groups, topics, tasks, reports, messages, jobs, aiRuns, performance });
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       if (err instanceof Error && err.message.startsWith('401')) {
@@ -221,7 +262,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [performanceMode, performancePage]);
 
   const checkAuth = useCallback(async () => {
     setLoading(true);
@@ -344,9 +385,20 @@ export function App() {
         {active === 'overview' ? (
           <Overview data={data} metrics={metrics} onRunJob={runJob} />
         ) : null}
+        {active === 'performance' ? (
+          <Performance
+            performance={data.performance}
+            mode={performanceMode}
+            onModeChange={(mode) => {
+              setPerformanceMode(mode);
+              setPerformancePage(1);
+            }}
+            onPageChange={setPerformancePage}
+          />
+        ) : null}
         {active === 'groups' ? <Groups groups={filtered.groups} topics={filtered.topics} /> : null}
         {active === 'tasks' ? <Tasks tasks={filtered.tasks} aiRuns={filtered.aiRuns} /> : null}
-        {active === 'reports' ? <Reports reports={filtered.reports} /> : null}
+        {active === 'reports' ? <Reports reports={filtered.reports} selectedReportId={selectedReportId} /> : null}
         {active === 'messages' ? <Messages messages={filtered.messages} /> : null}
         {active === 'jobs' ? <Jobs jobs={filtered.jobs} onRunJob={runJob} /> : null}
       </main>
@@ -389,7 +441,7 @@ function Overview({
 }) {
   const cards = [
     { label: 'Messages collected', value: metrics?.messages.collected ?? 0, icon: MessageSquareText },
-    { label: 'Open tasks', value: data.tasks.filter((task) => task.status !== 'done').length, icon: ListChecks },
+    { label: 'Completed items', value: data.performance?.rows.reduce((sum, row) => sum + row.completedItems, 0) ?? 0, icon: CheckCircle2 },
     { label: 'AI runs', value: metrics?.ai.runs ?? 0, icon: BrainCircuit },
     { label: 'Reports sent', value: metrics?.reports.sent ?? 0, icon: Send },
   ];
@@ -432,17 +484,101 @@ function Overview({
         </Panel>
       </div>
 
-      <Panel title="Recent Tasks" icon={ListChecks}>
+      <Panel title="Recent Performance" icon={CalendarDays}>
         <DataTable
-          columns={['Task', 'Status', 'Assignee', 'Group', 'Updated']}
-          rows={data.tasks.slice(0, 8).map((task) => [
-            task.title,
-            <StatusBadge key="status" value={task.status} />,
-            userLabel(task.assignee, task.assigneeUsername),
-            task.groupTitle ?? 'Unknown',
-            formatDate(task.lastUpdatedAt),
+          columns={['Member', 'Done', 'Progress', 'Blockers', 'Period']}
+          rows={(data.performance?.rows ?? []).slice(0, 8).map((row) => [
+            userLabel(row.memberName, row.username),
+            row.completedItems,
+            row.progressItems,
+            row.blockerItems,
+            `${formatDate(row.periodStart)} - ${formatDate(row.periodEnd)}`,
           ])}
         />
+      </Panel>
+    </section>
+  );
+}
+
+function Performance({
+  performance,
+  mode,
+  onModeChange,
+  onPageChange,
+}: {
+  performance: PerformanceResponse | null;
+  mode: 'day' | 'week' | 'month';
+  onModeChange: (mode: 'day' | 'week' | 'month') => void;
+  onPageChange: (page: number) => void;
+}) {
+  const rows = performance?.rows ?? [];
+  return (
+    <section className="stack">
+      <Panel title="Performance Calendar" icon={CalendarDays}>
+        <div className="panel-toolbar">
+          <div className="segmented">
+            {(['day', 'week', 'month'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={mode === option ? 'active' : undefined}
+                onClick={() => onModeChange(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <div className="pagination">
+            <button
+              type="button"
+              disabled={!performance || performance.page <= 1}
+              onClick={() => onPageChange((performance?.page ?? 1) - 1)}
+            >
+              Prev
+            </button>
+            <span>
+              Page {performance?.page ?? 1}/{performance?.totalPages ?? 1}
+            </span>
+            <button
+              type="button"
+              disabled={!performance || performance.page >= performance.totalPages}
+              onClick={() => onPageChange((performance?.page ?? 1) + 1)}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        <div className="performance-grid">
+          {rows.length === 0 ? (
+            <div className="empty">No performance data</div>
+          ) : (
+            rows.map((row) => (
+              <article className="performance-card" key={`${row.periodStart}-${row.telegramUserId ?? row.memberName}`}>
+                <div className="performance-head">
+                  <div>
+                    <strong>{userLabel(row.memberName, row.username)}</strong>
+                    <span>{formatDate(row.periodStart)} - {formatDate(row.periodEnd)}</span>
+                  </div>
+                  <StatusBadge value={`${row.totalItems} items`} />
+                </div>
+                <div className="score-row">
+                  <span>Done <strong>{row.completedItems}</strong></span>
+                  <span>Progress <strong>{row.progressItems}</strong></span>
+                  <span>Blocker <strong>{row.blockerItems}</strong></span>
+                  <span>Decision <strong>{row.decisionItems}</strong></span>
+                </div>
+                <ul className="work-list">
+                  {row.items.slice(0, 5).map((item, index) => (
+                    <li key={index}>
+                      <StatusBadge value={item.eventType.replace('task_', '')} />
+                      <span>{item.summary}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))
+          )}
+        </div>
       </Panel>
     </section>
   );
@@ -518,21 +654,29 @@ function Tasks({ tasks, aiRuns }: { tasks: TaskRow[]; aiRuns: AiRunRow[] }) {
   );
 }
 
-function Reports({ reports }: { reports: ReportRow[] }) {
+function Reports({ reports, selectedReportId }: { reports: ReportRow[]; selectedReportId: string | null }) {
+  const selectedReport = reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null;
+
   return (
-    <Panel title="Reports" icon={FileText}>
-      <DataTable
-        columns={['Type', 'Status', 'Group', 'Period', 'Telegram message', 'Sent']}
-        rows={reports.map((report) => [
-          report.reportType,
-          <StatusBadge key="status" value={report.status} />,
-          report.groupTitle ?? 'Unknown',
-          `${formatDate(report.periodStart)} - ${formatDate(report.periodEnd)}`,
-          report.telegramMessageId ?? 'not sent',
-          report.sentAt ? formatDate(report.sentAt) : 'pending',
-        ])}
-      />
-    </Panel>
+    <section className="stack">
+      <Panel title="Reports" icon={FileText}>
+        <DataTable
+          columns={['Type', 'Status', 'Group', 'Period', 'Created']}
+          rows={reports.map((report) => [
+            report.reportType,
+            <StatusBadge key="status" value={report.status} />,
+            report.groupTitle ?? 'Unknown',
+            `${formatDate(report.periodStart)} - ${formatDate(report.periodEnd)}`,
+            formatDate(report.createdAt),
+          ])}
+        />
+      </Panel>
+      {selectedReport?.content ? (
+        <Panel title="Latest Report Content" icon={FileText}>
+          <pre className="report-preview">{selectedReport.content}</pre>
+        </Panel>
+      ) : null}
+    </section>
   );
 }
 
@@ -684,6 +828,7 @@ function filterData(data: DashboardData, query: string): DashboardData {
     messages: data.messages.filter(match),
     jobs: data.jobs.filter(match),
     aiRuns: data.aiRuns.filter(match),
+    performance: data.performance,
   };
 }
 

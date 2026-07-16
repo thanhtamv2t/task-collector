@@ -24,7 +24,7 @@ export class ReportsRepository {
       })
       .from(taskEvents)
       .innerJoin(telegramGroups, eq(taskEvents.groupId, telegramGroups.id))
-      .where(and(gte(taskEvents.createdAt, periodStart), lt(taskEvents.createdAt, periodEnd)));
+      .where(and(gte(taskEvents.occurredAt, periodStart), lt(taskEvents.occurredAt, periodEnd)));
   }
 
   async listReportItems(input: {
@@ -44,7 +44,7 @@ export class ReportsRepository {
         assigneeDisplayName: telegramUsers.displayName,
         sourceMessageIds: taskEvents.sourceMessageIds,
         confidence: taskEvents.aiConfidence,
-        createdAt: taskEvents.createdAt,
+        createdAt: taskEvents.occurredAt,
       })
       .from(taskEvents)
       .leftJoin(tasks, eq(taskEvents.taskId, tasks.id))
@@ -53,8 +53,8 @@ export class ReportsRepository {
       .where(
         and(
           eq(taskEvents.groupId, input.groupId),
-          gte(taskEvents.createdAt, input.periodStart),
-          lt(taskEvents.createdAt, input.periodEnd),
+          gte(taskEvents.occurredAt, input.periodStart),
+          lt(taskEvents.occurredAt, input.periodEnd),
         ),
       );
 

@@ -16,6 +16,7 @@ export const appConfig = registerAs('app', () => ({
   githubAdminLogin: process.env.GITHUB_ADMIN_LOGIN ?? '',
   githubAdminId: process.env.GITHUB_ADMIN_ID ?? '',
   alertWebhookUrl: process.env.ALERT_WEBHOOK_URL ?? '',
+  dailyReportReminderSchedule: process.env.DAILY_REPORT_REMINDER_SCHEDULE ?? '0 21 * * *',
   rawPayloadRetentionDays: Number(process.env.RAW_PAYLOAD_RETENTION_DAYS ?? 90),
   normalizedMessageRetentionDays: Number(process.env.NORMALIZED_MESSAGE_RETENTION_DAYS ?? 180),
   aiRawResponseRetentionDays: Number(process.env.AI_RAW_RESPONSE_RETENTION_DAYS ?? 30),

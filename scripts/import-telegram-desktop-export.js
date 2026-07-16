@@ -21,6 +21,7 @@ if (!databaseUrl) {
 const exported = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 const messages = Array.isArray(exported.messages) ? exported.messages : [];
 const telegramChatId = args['chat-id'] ?? inferBotApiChatId(exported);
+const reportChatId = args['report-chat-id'] ?? firstAdminTelegramUserId();
 const includeEmpty = Boolean(args['include-empty']);
 
 if (!telegramChatId) {
@@ -37,6 +38,7 @@ async function main() {
     const groupId = await upsertGroup(client, {
       telegramChatId,
       title: exported.name ?? null,
+      reportChatId,
     });
 
     let imported = 0;
@@ -115,15 +117,27 @@ async function main() {
 async function upsertGroup(client, group) {
   const result = await client.query(
     `
-      insert into telegram_groups (telegram_chat_id, title, is_active, timezone, created_at, updated_at)
-      values ($1, $2, true, $3, now(), now())
+      insert into telegram_groups (telegram_chat_id, title, report_chat_id, is_active, timezone, created_at, updated_at)
+      values ($1, $2, $3, true, $4, now(), now())
       on conflict (telegram_chat_id)
-      do update set title = excluded.title, is_active = true, updated_at = now()
+      do update set title = excluded.title, report_chat_id = excluded.report_chat_id, is_active = true, updated_at = now()
       returning id
     `,
-    [group.telegramChatId, group.title, process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh'],
+    [
+      group.telegramChatId,
+      group.title,
+      group.reportChatId,
+      process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh',
+    ],
   );
   return result.rows[0].id;
+}
+
+function firstAdminTelegramUserId() {
+  return (process.env.ADMIN_TELEGRAM_USER_IDS ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)[0] ?? null;
 }
 
 async function upsertUserFromExport(client, message) {
