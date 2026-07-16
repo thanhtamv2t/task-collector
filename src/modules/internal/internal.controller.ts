@@ -22,12 +22,14 @@ import { InternalDashboardService } from './internal-dashboard.service';
 import { InternalGroupsService } from './internal-groups.service';
 import { InternalMetricsService } from './internal-metrics.service';
 import { ReportsService } from '../reports/reports.service';
+import { DailyReportReminderJob } from '../jobs/daily-report-reminder.job';
 
 @Controller('internal/jobs')
 export class InternalJobsController {
   constructor(
     private readonly triggers: JobTriggerService,
     private readonly pgBoss: PgBossService,
+    private readonly dailyReportReminderJob: DailyReportReminderJob,
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
   ) {}
@@ -68,6 +70,15 @@ export class InternalJobsController {
   ) {
     this.assertAuthorized(token, cookie);
     return this.triggers.triggerRetention();
+  }
+
+  @Post('daily-report-reminder')
+  async triggerDailyReportReminder(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.dailyReportReminderJob.handle();
   }
 
   @Get(':id')
@@ -307,12 +318,18 @@ export class InternalDashboardController {
     @Query('mode') mode = 'week',
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '12',
+    @Query('memberName') memberName?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     this.assertAuthorized(token, cookie);
     return this.dashboard.performance({
       mode,
       page: Number(page),
       pageSize: Number(pageSize),
+      memberName,
+      from,
+      to,
     });
   }
 

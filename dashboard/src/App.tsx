@@ -23,6 +23,18 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Badge } from './components/ui/badge';
+import { Button } from './components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from './components/ui/sheet';
+import { toast as sonnerToast, Toaster as SonnerToaster } from 'sonner';
 
 type Metrics = {
   messages: { collected: number; pending: number; processing: number; processed: number; failed: number };
@@ -200,6 +212,7 @@ type PerformanceResponse = {
   total: number;
   totalPages: number;
   rows: PerformanceRow[];
+  members?: string[];
 };
 
 const initialData: DashboardData = {
@@ -265,20 +278,21 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [performanceMode, setPerformanceMode] = useState<'day' | 'week' | 'month'>('week');
+  const [performanceMode, setPerformanceMode] = useState<'day' | 'week' | 'month' | 'year'>('week');
+  const [performanceMember, setPerformanceMember] = useState('all');
+  const [performanceFrom, setPerformanceFrom] = useState('');
+  const [performanceTo, setPerformanceTo] = useState('');
   const [performancePage, setPerformancePage] = useState(1);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportDrawerOpen, setReportDrawerOpen] = useState(Boolean(initialReportId));
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [cleaningDerived, setCleaningDerived] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Date.now();
-    setToasts((current) => [...current, { ...toast, id }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((item) => item.id !== id));
-    }, 4200);
+    const message = toast.description ? `${toast.title}: ${toast.description}` : toast.title;
+    if (toast.tone === 'success') sonnerToast.success(message);
+    else if (toast.tone === 'error') sonnerToast.error(message);
+    else sonnerToast(message);
   }, []);
 
   const load = useCallback(async () => {
@@ -294,7 +308,7 @@ export function App() {
         getJson<JobRow[]>('/internal/dashboard/jobs'),
         getJson<AiRunRow[]>('/internal/dashboard/ai-runs'),
         getJson<PerformanceResponse>(
-          `/internal/dashboard/performance?mode=${performanceMode}&page=${performancePage}&pageSize=12`,
+          `/internal/dashboard/performance?mode=${performanceMode}&page=${performancePage}&pageSize=12${performanceMember !== 'all' ? `&memberName=${encodeURIComponent(performanceMember)}` : ''}${performanceFrom ? `&from=${encodeURIComponent(new Date(`${performanceFrom}T00:00:00`).toISOString())}` : ''}${performanceTo ? `&to=${encodeURIComponent(new Date(`${performanceTo}T23:59:59`).toISOString())}` : ''}`,
         ),
       ]);
       setData({ metrics, groups, topics, reports, messages, jobs, aiRuns, performance });
@@ -307,7 +321,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [performanceMode, performancePage]);
+  }, [performanceMode, performancePage, performanceMember, performanceFrom, performanceTo]);
 
   const checkAuth = useCallback(async () => {
     setLoading(true);
@@ -327,7 +341,7 @@ export function App() {
     void checkAuth();
   }, [checkAuth]);
 
-  const runJob = async (job: 'extract' | 'report' | 'retry-failed' | 'retention') => {
+  const runJob = async (job: 'extract' | 'report' | 'retry-failed' | 'retention' | 'daily-report-reminder') => {
     setLoading(true);
     setError(null);
     try {
@@ -509,11 +523,24 @@ export function App() {
           />
         ) : null}
         {active === 'performance' ? (
-          <Performance
-            performance={data.performance}
-            mode={performanceMode}
-            onModeChange={(mode) => {
-              setPerformanceMode(mode);
+        <Performance
+          performance={data.performance}
+          mode={performanceMode}
+          member={performanceMember}
+          from={performanceFrom}
+          to={performanceTo}
+          members={data.performance?.members ?? []}
+          onMemberChange={(member) => {
+            setPerformanceMember(member);
+            setPerformancePage(1);
+          }}
+          onDateChange={(from, to) => {
+            setPerformanceFrom(from);
+            setPerformanceTo(to);
+            setPerformancePage(1);
+          }}
+          onModeChange={(mode) => {
+            setPerformanceMode(mode);
               setPerformancePage(1);
             }}
             onPageChange={setPerformancePage}
@@ -547,7 +574,7 @@ export function App() {
         onClose={() => setMaintenanceOpen(false)}
         onClean={cleanDerivedData}
       />
-      <Toaster toasts={toasts} />
+      <Toaster />
     </div>
   );
 }
@@ -584,7 +611,7 @@ function Overview({
 }: {
   data: DashboardData;
   metrics: Metrics | null;
-  onRunJob: (job: 'extract' | 'report' | 'retry-failed' | 'retention') => void;
+  onRunJob: (job: 'extract' | 'report' | 'retry-failed' | 'retention' | 'daily-report-reminder') => void;
   onOpenMaintenance: () => void;
 }) {
   const cards = [
@@ -627,6 +654,7 @@ function Overview({
             <button type="button" onClick={() => onRunJob('extract')}>Run extraction</button>
             <button type="button" onClick={() => onRunJob('retry-failed')}>Retry failed</button>
             <button type="button" onClick={() => onRunJob('retention')}>Run retention</button>
+            <button type="button" onClick={() => onRunJob('daily-report-reminder')}>Check missing reports</button>
             <button type="button" className="danger-button" onClick={onOpenMaintenance}>
               Clean derived data
             </button>
@@ -653,12 +681,24 @@ function Overview({
 function Performance({
   performance,
   mode,
+  member,
+  from,
+  to,
+  members,
+  onMemberChange,
+  onDateChange,
   onModeChange,
   onPageChange,
 }: {
   performance: PerformanceResponse | null;
-  mode: 'day' | 'week' | 'month';
-  onModeChange: (mode: 'day' | 'week' | 'month') => void;
+  mode: 'day' | 'week' | 'month' | 'year';
+  member: string;
+  from: string;
+  to: string;
+  members: string[];
+  onMemberChange: (member: string) => void;
+  onDateChange: (from: string, to: string) => void;
+  onModeChange: (mode: 'day' | 'week' | 'month' | 'year') => void;
   onPageChange: (page: number) => void;
 }) {
   const rows = performance?.rows ?? [];
@@ -666,8 +706,25 @@ function Performance({
     <section className="stack">
       <Panel title="Performance Calendar" icon={CalendarDays}>
         <div className="panel-toolbar">
+          <div className="filter-row">
+            <label className="filter-field">
+              <span>Member</span>
+              <select value={member} onChange={(event) => onMemberChange(event.target.value)}>
+                <option value="all">All members</option>
+                {members.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </label>
+            <label className="filter-field">
+              <span>From</span>
+              <input type="date" value={from} onChange={(event) => onDateChange(event.target.value, to)} />
+            </label>
+            <label className="filter-field">
+              <span>To</span>
+              <input type="date" value={to} onChange={(event) => onDateChange(from, event.target.value)} />
+            </label>
+          </div>
           <div className="segmented">
-            {(['day', 'week', 'month'] as const).map((option) => (
+            {(['day', 'week', 'month', 'year'] as const).map((option) => (
               <button
                 key={option}
                 type="button"
@@ -829,8 +886,9 @@ function Reports({
               </label>
             </>
           ) : null}
-          <button
+          <Button
             type="button"
+            size="lg"
             disabled={!groupId || generating}
             onClick={() =>
               onGenerate({
@@ -842,7 +900,7 @@ function Reports({
             }
           >
             {generating ? 'Generating' : 'Generate report'}
-          </button>
+          </Button>
         </div>
         <div className="range-note">
           {formatDateTime(range.start.toISOString())} - {formatDateTime(range.end.toISOString())}
@@ -858,14 +916,16 @@ function Reports({
             report.groupTitle ?? 'Unknown',
             `${formatDate(report.periodStart)} - ${formatDate(report.periodEnd)}`,
             formatDate(report.createdAt),
-            <button
+            <Button
               key="open"
               type="button"
+              variant="outline"
+              size="sm"
               className={selectedReportId === report.id ? 'active-row-button' : undefined}
               onClick={() => onSelectReport(report.id)}
             >
               View
-            </button>,
+            </Button>,
           ])}
         />
       </Panel>
@@ -883,7 +943,12 @@ function ReportDrawer({
   onClose: () => void;
 }) {
   return (
-    <Drawer open={open} title="Report Detail" onClose={onClose}>
+    <Sheet open={open} onOpenChange={(value) => !value && onClose()}>
+      <SheetContent side="right" className="report-sheet">
+        <SheetHeader>
+          <SheetTitle>Report detail</SheetTitle>
+          <SheetDescription>Performance evidence, AI insights, and source-backed member activity.</SheetDescription>
+        </SheetHeader>
       {report ? (
         <>
           <div className="report-detail">
@@ -895,12 +960,17 @@ function ReportDrawer({
           </div>
           <ReportInsightsPanel report={report} />
           <MemberBreakdown report={report} />
-          {report.content ? <pre className="report-preview">{report.content}</pre> : null}
+          {report.content ? (
+            <article className="markdown-body">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.content}</ReactMarkdown>
+            </article>
+          ) : null}
         </>
       ) : (
         <div className="empty">No report selected</div>
       )}
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -916,7 +986,12 @@ function MaintenanceDrawer({
   onClean: () => void;
 }) {
   return (
-    <Drawer open={open} title="Maintenance" onClose={onClose}>
+    <Sheet open={open} onOpenChange={(value) => !value && onClose()}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle>Maintenance</SheetTitle>
+          <SheetDescription>Remove generated data while keeping every collected Telegram message.</SheetDescription>
+        </SheetHeader>
       <div className="maintenance-panel">
         <div className="maintenance-icon">
           <Trash2 size={20} />
@@ -933,7 +1008,8 @@ function MaintenanceDrawer({
           </button>
         </div>
       </div>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -968,17 +1044,8 @@ function Drawer({
   );
 }
 
-function Toaster({ toasts }: { toasts: Toast[] }) {
-  return (
-    <div className="toast-stack" aria-live="polite">
-      {toasts.map((toast) => (
-        <div className={`toast ${toast.tone}`} key={toast.id}>
-          <strong>{toast.title}</strong>
-          {toast.description ? <span>{toast.description}</span> : null}
-        </div>
-      ))}
-    </div>
-  );
+function Toaster() {
+  return <SonnerToaster position="bottom-right" richColors closeButton />;
 }
 
 function ReportInsightsPanel({ report }: { report: ReportRow }) {
@@ -1086,7 +1153,7 @@ function Jobs({
   onRunJob,
 }: {
   jobs: JobRow[];
-  onRunJob: (job: 'extract' | 'report' | 'retry-failed' | 'retention') => void;
+  onRunJob: (job: 'extract' | 'report' | 'retry-failed' | 'retention' | 'daily-report-reminder') => void;
 }) {
   return (
     <section className="stack">
@@ -1095,6 +1162,7 @@ function Jobs({
           <button type="button" onClick={() => onRunJob('extract')}>Run extraction</button>
           <button type="button" onClick={() => onRunJob('retry-failed')}>Retry failed</button>
           <button type="button" onClick={() => onRunJob('retention')}>Run retention</button>
+          <button type="button" onClick={() => onRunJob('daily-report-reminder')}>Check missing reports</button>
         </div>
       </Panel>
 
@@ -1190,7 +1258,7 @@ function StatusBadge({ value }: { value: string }) {
           ? 'warn'
           : 'neutral';
 
-  return <span className={`badge ${tone}`}>{value}</span>;
+  return <Badge variant={tone === 'bad' ? 'destructive' : tone === 'good' ? 'default' : 'secondary'}>{value}</Badge>;
 }
 
 function filterData(data: DashboardData, query: string): DashboardData {

@@ -62,6 +62,9 @@ export class JobSchedulerService implements OnModuleInit {
         { requestedBy: 'schedule' },
         { tz: this.app.timezone },
       );
+      this.logger.log(
+        `Daily report reminder scheduled at "${this.app.dailyReportReminderSchedule}" (${this.app.timezone})`,
+      );
     }
 
     this.logger.log(`Registered ${schedules.length} report schedules`);

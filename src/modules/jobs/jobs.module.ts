@@ -32,6 +32,6 @@ import { DailyReportReminderJob } from './daily-report-reminder.job';
     JobWorkerService,
     JobSchedulerService,
   ],
-  exports: [PgBossService, JobTriggerService],
+  exports: [PgBossService, JobTriggerService, DailyReportReminderJob],
 })
 export class JobsModule {}

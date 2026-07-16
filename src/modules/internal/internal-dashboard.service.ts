@@ -207,14 +207,24 @@ export class InternalDashboardService {
     };
   }
 
-  async performance(input: { mode: string; page: number; pageSize: number }) {
-    const mode = ['day', 'week', 'month'].includes(input.mode) ? input.mode : 'week';
+  async performance(input: {
+    mode: string;
+    page: number;
+    pageSize: number;
+    memberName?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const mode = ['day', 'week', 'month', 'year'].includes(input.mode) ? input.mode : 'week';
     const page = Math.max(1, input.page);
     const pageSize = Math.min(50, Math.max(5, input.pageSize));
     const offset = (page - 1) * pageSize;
-    const periodUnit = mode === 'day' ? 'day' : mode === 'month' ? 'month' : 'week';
+    const periodUnit = mode === 'day' ? 'day' : mode === 'month' ? 'month' : mode === 'year' ? 'year' : 'week';
+    const memberFilter = input.memberName ? sql`and coalesce(user_group.value->>'name', 'Unknown') = ${input.memberName}` : sql``;
+    const dateFilter = input.from ? sql`and r.period_start >= ${new Date(input.from)}` : sql``;
+    const endFilter = input.to ? sql`and r.period_start <= ${new Date(input.to)}` : sql``;
 
-    const rowsResult = await this.database.db.execute(sql.raw(`
+    const rowsResult = await this.database.db.execute(sql`
       with report_items as (
         select
           date_trunc('${periodUnit}', r.period_start) as period_start,
@@ -250,6 +260,7 @@ export class InternalDashboardService {
           ) as items
         from report_items
         where event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
+          ${memberFilter} ${dateFilter} ${endFilter}
         group by period_start, period_end, member_name
       )
       select *
@@ -257,8 +268,8 @@ export class InternalDashboardService {
       order by period_start desc, member_name asc
       limit ${pageSize}
       offset ${offset}
-    `));
-    const countResult = await this.database.db.execute(sql.raw(`
+    `);
+    const countResult = await this.database.db.execute(sql`
       select count(*)::int as total
       from (
         select
@@ -268,9 +279,16 @@ export class InternalDashboardService {
         cross join lateral jsonb_array_elements(r.structured_content->'byUser') as user_group(value)
         cross join lateral jsonb_array_elements(user_group.value->'items') as item(value)
         where item.value->>'eventType' in ('task_completed', 'task_progress', 'blocker', 'decision')
+          ${memberFilter} ${dateFilter} ${endFilter}
         group by 1, 2
       ) rows
-    `));
+    `);
+    const membersResult = await this.database.db.execute(sql`
+      select distinct coalesce(user_group.value->>'name', 'Unknown') as member_name
+      from reports r
+      cross join lateral jsonb_array_elements(r.structured_content->'byUser') as user_group(value)
+      order by member_name asc
+    `);
 
     const rows = (rowsResult as unknown as { rows: Array<Record<string, unknown>> }).rows;
     const total = Number((countResult as unknown as { rows: Array<{ total: number }> }).rows[0]?.total ?? 0);
@@ -281,6 +299,9 @@ export class InternalDashboardService {
       pageSize,
       total,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      members: ((membersResult as unknown as { rows: Array<{ member_name: string }> }).rows ?? []).map(
+        (row) => row.member_name,
+      ),
       rows: rows.map((row) => ({
         periodStart: row.period_start,
         periodEnd: row.period_end,

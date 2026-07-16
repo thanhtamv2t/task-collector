@@ -49,6 +49,21 @@ export class JobTriggerService {
     };
   }
 
+  async triggerDailyReportReminder(): Promise<JobTriggerResult> {
+    const payload = this.payloads.build({}, 'manual');
+    const jobId = await this.pgBoss.send(
+      JOB_QUEUE_NAMES.dailyReportReminder,
+      payload,
+      `${JOB_QUEUE_NAMES.dailyReportReminder}:manual:${Date.now()}`,
+    );
+
+    return {
+      queue: JOB_QUEUE_NAMES.dailyReportReminder,
+      jobId,
+      payload,
+    };
+  }
+
   private async trigger(
     queue: JobQueueName,
     input: PeriodInput,

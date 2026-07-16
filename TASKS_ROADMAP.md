@@ -9,6 +9,7 @@
 ## Current State
 
 - Code-level implementation for all planning milestones is complete.
+- Dashboard UI is now based on shadcn-admin's Tailwind/shadcn primitives and report workflows.
 - Product scope is now daily report collection and member performance evaluation; task-centric dashboard/report surfaces are being retired.
 - Remaining unchecked items in `telegram-task-reporter-plan.md` require real Telegram/OpenRouter/Docker runtime verification.
 - Milestone 0 bootstrap is implemented.
@@ -131,10 +132,17 @@
 - [x] Dashboard maintenance action and CLI scripts clean generated data while preserving messages.
 - [x] Dashboard report details and maintenance confirmations use drawer UI with sonner-style toasts.
 - [x] Docker image installs Alpine `libatomic` so Node can load `libatomic.so.1` in API/worker/script containers.
+- [x] Dashboard uses shadcn-admin UI primitives and Tailwind theme for buttons, badges, sheets, tables, and controls.
+- [x] Dashboard report detail renders Markdown with `react-markdown` and GitHub-flavored Markdown support.
+- [x] Dashboard uses Sonner for action feedback.
+- [x] Performance summary filters by member and date range with day/week/month/year aggregation.
+- [x] Dashboard can manually trigger the daily-report missing-member reminder job.
+- [x] Worker logs the configured reminder cron and timezone at startup.
+- [x] Dashboard reminder trigger runs the missing-report check immediately and returns reminder counts.
 
 ## Next Up
 
-1. Start Docker daemon and run `npm run prepare:dev`.
+1. Rebuild/deploy dashboard with `npm run dashboard:build` and `npm run dashboard:deploy`.
 2. Verify `npm run test:integration` with PostgreSQL available.
 3. Create Telegram bot via BotFather and add it to a test group.
 4. Set Telegram/OpenRouter secrets in `.env`.
