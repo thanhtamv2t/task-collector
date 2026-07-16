@@ -41,7 +41,7 @@ export class DailyReportReminderJob {
       try {
         await this.bot.sendMessage(
           group.telegramChatId,
-          `Nhắc daily report sau 21:00: ${mentions}\nBạn chưa gửi daily report hôm nay.`,
+          `${this.escape('Nhắc daily report sau 21:00:')} ${mentions}\n${this.escape('Bạn chưa gửi daily report hôm nay.')}`,
           null,
           'MarkdownV2',
         );

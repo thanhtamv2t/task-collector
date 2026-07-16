@@ -146,6 +146,7 @@
 - [x] Performance SQL uses whitelisted literal date-trunc/interval units, fixing PostgreSQL runtime errors.
 - [x] Daily reminder admin filtering uses parameterized `NOT IN` values and returns a readable API error on failure.
 - [x] Manual/scheduled reminder reports per-group Telegram delivery failures without aborting the whole reminder run.
+- [x] Daily reminder MarkdownV2 static text is escaped correctly, including trailing punctuation.
 
 ## Next Up
 
