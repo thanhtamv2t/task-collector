@@ -120,6 +120,7 @@
 - [x] Telegram API runtime check script for bot token/webhook/test chat.
 - [x] OpenRouter runtime check script for API key/model JSON response.
 - [x] Safe shell `.env` loader for cron values containing spaces.
+- [x] Standalone VPS dashboard deploy script for rebuilding and publishing static assets.
 
 ## Next Up
 

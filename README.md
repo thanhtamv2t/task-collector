@@ -151,6 +151,13 @@ GITHUB_OAUTH_CALLBACK_URL=https://task.orokucode.com/auth/github/callback
 
 Use that GitHub callback URL in the GitHub OAuth app.
 
+When only dashboard code changed, rebuild and publish the static frontend without rerunning the full
+VPS setup:
+
+```bash
+npm run dashboard:deploy
+```
+
 See [RUNBOOK.md](RUNBOOK.md) for backup, restore, health checks, and incident handling.
 
 To run all local checks and print the remaining external runtime checklist:

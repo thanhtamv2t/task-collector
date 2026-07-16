@@ -30,6 +30,7 @@
     "test:watch": "vitest",
     "dashboard:dev": "pnpm --dir dashboard dev",
     "dashboard:build": "pnpm --dir dashboard build",
+    "dashboard:deploy": "sh scripts/deploy-dashboard.sh",
     "dashboard:preview": "pnpm --dir dashboard preview",
     "db:backup": "sh scripts/backup-db.sh",
     "db:restore": "sh scripts/restore-db.sh",
