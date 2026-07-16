@@ -69,8 +69,26 @@ install_package() {
   if command -v apt-get >/dev/null 2>&1; then
     run_as_root apt-get update
     run_as_root apt-get install -y "$PACKAGE"
+  elif command -v apk >/dev/null 2>&1; then
+    run_as_root apk add --no-cache "$PACKAGE"
   else
     fail "Package '$PACKAGE' is missing. Install it manually, then re-run this script."
+  fi
+}
+
+ensure_node_atomic_runtime() {
+  NODE_BIN="$(command -v node 2>/dev/null || true)"
+  if [ -z "$NODE_BIN" ] || ! command -v ldd >/dev/null 2>&1; then
+    return
+  fi
+
+  if ldd "$NODE_BIN" 2>/dev/null | grep -q 'libatomic.*not found'; then
+    log "Installing libatomic for the host Node.js runtime"
+    if command -v apt-get >/dev/null 2>&1; then
+      install_package libatomic1
+    else
+      install_package libatomic
+    fi
   fi
 }
 
@@ -205,6 +223,7 @@ EOF
 
 log "Checking VPS tooling"
 require_command docker
+ensure_node_atomic_runtime
 
 if ! docker compose version >/dev/null 2>&1; then
   fail "Docker is installed, but docker compose is not available."

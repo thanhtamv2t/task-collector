@@ -26,6 +26,27 @@ run_as_root() {
   fi
 }
 
+ensure_node_atomic_runtime() {
+  NODE_BIN="$(command -v node 2>/dev/null || true)"
+  if [ -z "$NODE_BIN" ] || ! command -v ldd >/dev/null 2>&1; then
+    return
+  fi
+
+  if ! ldd "$NODE_BIN" 2>/dev/null | grep -q 'libatomic.*not found'; then
+    return
+  fi
+
+  log "Node is missing libatomic; installing the host runtime package"
+  if command -v apt-get >/dev/null 2>&1; then
+    run_as_root apt-get update
+    run_as_root apt-get install -y libatomic1
+  elif command -v apk >/dev/null 2>&1; then
+    run_as_root apk add --no-cache libatomic
+  else
+    fail "Node is missing libatomic.so.1. Install libatomic1/libatomic, then re-run."
+  fi
+}
+
 ensure_pnpm() {
   if command -v pnpm >/dev/null 2>&1; then
     return
@@ -56,6 +77,7 @@ reload_nginx_if_available() {
   fi
 }
 
+ensure_node_atomic_runtime
 ensure_pnpm
 
 log "Building dashboard"

@@ -158,6 +158,17 @@ VPS setup:
 npm run dashboard:deploy
 ```
 
+If Node.js fails before the command starts with `libatomic.so.1: cannot open shared object file`, install
+the host runtime once and retry:
+
+```bash
+sudo apt-get update && sudo apt-get install -y libatomic1
+npm run dashboard:build
+npm run dashboard:deploy
+```
+
+The VPS setup and dashboard deploy scripts also detect this missing package automatically on the next run.
+
 To clean generated/derived data while preserving Telegram messages:
 
 ```bash

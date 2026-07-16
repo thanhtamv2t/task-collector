@@ -139,6 +139,7 @@
 - [x] Dashboard can manually trigger the daily-report missing-member reminder job.
 - [x] Worker logs the configured reminder cron and timezone at startup.
 - [x] Dashboard reminder trigger runs the missing-report check immediately and returns reminder counts.
+- [x] VPS/dashboard deploy scripts detect and install the host Node.js `libatomic` runtime dependency.
 
 ## Next Up
 
