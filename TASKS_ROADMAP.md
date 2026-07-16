@@ -126,6 +126,8 @@
 - [x] Dashboard report builder supports today, week-to-date, full-history, and custom ranges.
 - [x] Dashboard report detail shows generated report content and per-member performance breakdown.
 - [x] Dashboard task tab/columns are removed from the main admin surface.
+- [x] Performance reports include executive insights, highlights, risks, recommendations, and member scoring.
+- [x] AI prompt splits dense daily reports into atomic work items and classifies completed Vietnamese work signals more accurately.
 
 ## Next Up
 

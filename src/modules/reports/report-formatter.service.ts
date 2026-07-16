@@ -15,6 +15,8 @@ export class ReportFormatterService {
       `*Performance report:* ${this.escape(input.title)}`,
       `*Period:* ${this.escape(input.periodStart.toISOString())} → ${this.escape(input.periodEnd.toISOString())}`,
       '',
+      this.insights(input.structured),
+      '',
       this.performanceByUser(input.structured.byUser),
       this.section('✅ Completed work', input.structured.completed),
       this.section('🔄 In progress', input.structured.inProgress),
@@ -66,6 +68,22 @@ export class ReportFormatterService {
       }),
       '',
     ].join('\n');
+  }
+
+  private insights(report: StructuredReport): string {
+    const insights = report.insights;
+    const lines = [
+      `*${this.escape('Executive insights')}*`,
+      `\\- ${this.escape(insights.summary)}`,
+      `*${this.escape('Highlights')}*`,
+      ...insights.highlights.slice(0, 5).map((item) => `\\- ${this.escape(item)}`),
+      `*${this.escape('Risks')}*`,
+      ...insights.risks.slice(0, 5).map((item) => `\\- ${this.escape(item)}`),
+      `*${this.escape('Recommended actions')}*`,
+      ...insights.recommendations.slice(0, 5).map((item) => `\\- ${this.escape(item)}`),
+    ];
+
+    return lines.join('\n');
   }
 
   private groupedSection(title: string, groups: Array<{ name: string; items: ReportItem[] }>): string {

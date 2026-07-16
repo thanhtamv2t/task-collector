@@ -568,6 +568,49 @@ button:disabled {
   margin-top: 3px;
 }
 
+.insight-grid {
+  display: grid;
+  grid-template-columns: 1.1fr repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.insight-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-subtle);
+  padding: 12px;
+  min-width: 0;
+}
+
+.insight-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.insight-card strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.insight-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.insight-card li {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .member-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -716,6 +759,7 @@ tr:last-child td {
   .metric-grid,
   .split-grid,
   .performance-grid,
+  .insight-grid,
   .member-grid,
   .report-builder,
   .button-grid,

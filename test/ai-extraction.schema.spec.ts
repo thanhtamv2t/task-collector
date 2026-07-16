@@ -61,6 +61,8 @@ describe('buildExtractionPrompt', () => {
     });
 
     expect(prompt).toContain('performance evaluator');
+    expect(prompt).toContain('Split dense daily reports into separate events');
+    expect(prompt).toContain('đã sửa');
     expect(prompt).toContain('The actor must be the sender');
     expect(prompt).toContain('message_id: 1002');
     expect(prompt).toContain('Existing task records are not used');

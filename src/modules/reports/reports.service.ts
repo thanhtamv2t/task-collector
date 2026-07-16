@@ -8,7 +8,7 @@ import { ExtractedEvent } from '../ai/schemas/extracted-event.schema';
 import { TelegramBotService } from '../telegram/telegram-bot.service';
 import { ReportFormatterService } from './report-formatter.service';
 import { ReportsRepository } from './reports.repository';
-import { ReportItem, ReportMessage, StructuredReport } from './reports.types';
+import { ReportInsights, ReportItem, ReportMessage, StructuredReport } from './reports.types';
 
 @Injectable()
 export class ReportsService {
@@ -153,19 +153,124 @@ export class ReportsService {
   }
 
   private structure(items: ReportItem[]): StructuredReport {
+    const byUser = this.groupBy(
+      items,
+      (item) => item.actorDisplayName ?? item.assigneeDisplayName ?? 'Unknown',
+    );
+    const completed = items.filter((item) => item.eventType === 'task_completed');
+    const inProgress = items.filter((item) => item.eventType === 'task_progress');
+    const blockers = items.filter((item) => item.eventType === 'blocker');
+    const decisions = items.filter((item) => item.eventType === 'decision');
+
     return {
-      completed: items.filter((item) => item.eventType === 'task_completed'),
-      inProgress: items.filter((item) => item.eventType === 'task_progress'),
+      insights: this.buildInsights({
+        items,
+        byUser,
+        completed,
+        inProgress,
+        blockers,
+        decisions,
+      }),
+      completed,
+      inProgress,
       newTasks: items.filter((item) => item.eventType === 'task_created'),
-      blockers: items.filter((item) => item.eventType === 'blocker'),
-      decisions: items.filter((item) => item.eventType === 'decision'),
+      blockers,
+      decisions,
       needsReview: items.filter((item) => Number(item.confidence ?? 1) < 0.8),
       unassigned: items.filter((item) => item.taskId === null),
       byTopic: this.groupBy(items, (item) => item.topicName ?? 'General'),
-      byUser: this.groupBy(
-        items,
-        (item) => item.actorDisplayName ?? item.assigneeDisplayName ?? 'Unknown',
+      byUser,
+    };
+  }
+
+  private buildInsights(input: {
+    items: ReportItem[];
+    byUser: Array<{ name: string; items: ReportItem[] }>;
+    completed: ReportItem[];
+    inProgress: ReportItem[];
+    blockers: ReportItem[];
+    decisions: ReportItem[];
+  }): ReportInsights {
+    const memberInsights = input.byUser
+      .map((group) => {
+        const completed = group.items.filter((item) => item.eventType === 'task_completed').length;
+        const progress = group.items.filter((item) => item.eventType === 'task_progress').length;
+        const blockers = group.items.filter((item) => item.eventType === 'blocker').length;
+        const decisions = group.items.filter((item) => item.eventType === 'decision').length;
+        const score = completed * 3 + decisions * 2 + progress - blockers * 2;
+        const signal =
+          blockers > 0
+            ? 'Có blocker cần gỡ'
+            : completed >= 3
+              ? 'Output tốt, nhiều hạng mục đã đóng'
+              : completed > 0
+                ? 'Có output hoàn thành'
+                : progress > 2
+                  ? 'Nhiều việc đang mở, cần close bớt'
+                  : progress > 0
+                    ? 'Có tiến độ nhưng chưa thấy output đóng'
+                    : 'Ít tín hiệu performance';
+
+        return {
+          name: group.name,
+          score,
+          completed,
+          progress,
+          blockers,
+          decisions,
+          signal,
+        };
+      })
+      .sort((left, right) => right.score - left.score || right.completed - left.completed);
+
+    const topMembers = memberInsights.slice(0, 3).filter((member) => member.score > 0);
+    const progressHeavy = memberInsights.filter(
+      (member) => member.progress > member.completed && member.progress >= 2,
+    );
+    const blockedMembers = memberInsights.filter((member) => member.blockers > 0);
+    const lowConfidenceCount = input.items.filter((item) => Number(item.confidence ?? 1) < 0.8).length;
+
+    const summary =
+      input.items.length === 0
+        ? 'Không có daily report hợp lệ trong khoảng đã chọn.'
+        : `${input.byUser.length} thành viên có report, ${input.completed.length} completed, ${input.inProgress.length} in-progress, ${input.blockers.length} blocker.`;
+
+    const highlights =
+      topMembers.length > 0
+        ? topMembers.map(
+            (member) =>
+              `${member.name}: ${member.completed} completed, ${member.progress} progress (${member.signal}).`,
+          )
+        : ['Chưa thấy output hoàn thành rõ ràng trong khoảng này.'];
+
+    const risks = [
+      ...blockedMembers.map((member) => `${member.name}: ${member.blockers} blocker cần xử lý.`),
+      ...progressHeavy.map(
+        (member) => `${member.name}: nhiều progress hơn completed, nên review các việc chưa đóng.`,
       ),
+      ...(lowConfidenceCount > 0 ? [`${lowConfidenceCount} item confidence thấp cần admin review.`] : []),
+    ];
+
+    const recommendations = [
+      ...(progressHeavy.length > 0
+        ? ['Yêu cầu member có nhiều progress cập nhật outcome/ETA rõ hơn ở report kế tiếp.']
+        : []),
+      ...(blockedMembers.length > 0 ? ['Ưu tiên gỡ blocker trước khi tạo thêm scope mới.'] : []),
+      ...(input.completed.length === 0 && input.inProgress.length > 0
+        ? ['Report hiện thiên về activity; cần hỏi rõ hạng mục nào đã hoàn thành.']
+        : []),
+      ...(input.items.length === 0
+        ? ['Kiểm tra format daily report hoặc range report vì không có evidence hợp lệ.']
+        : []),
+    ];
+
+    return {
+      summary,
+      highlights,
+      risks: risks.length > 0 ? risks : ['Không thấy blocker/risk rõ ràng trong report.'],
+      recommendations:
+        recommendations.length > 0 ? recommendations : ['Tiếp tục tracking completion rate và blocker theo từng ngày.'],
+      memberInsights,
     };
   }
 

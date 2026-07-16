@@ -26,6 +26,7 @@ export interface ReportMessage {
 }
 
 export interface StructuredReport {
+  insights: ReportInsights;
   completed: ReportItem[];
   inProgress: ReportItem[];
   newTasks: ReportItem[];
@@ -35,4 +36,20 @@ export interface StructuredReport {
   unassigned: ReportItem[];
   byTopic: Array<{ name: string; items: ReportItem[] }>;
   byUser: Array<{ name: string; items: ReportItem[] }>;
+}
+
+export interface ReportInsights {
+  summary: string;
+  highlights: string[];
+  risks: string[];
+  recommendations: string[];
+  memberInsights: Array<{
+    name: string;
+    score: number;
+    completed: number;
+    progress: number;
+    blockers: number;
+    decisions: number;
+    signal: string;
+  }>;
 }

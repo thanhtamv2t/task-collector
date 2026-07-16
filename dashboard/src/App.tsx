@@ -65,12 +65,29 @@ type ReportRow = {
 };
 
 type StructuredReport = {
+  insights?: ReportInsights;
   completed?: ReportItem[];
   inProgress?: ReportItem[];
   blockers?: ReportItem[];
   decisions?: ReportItem[];
   needsReview?: ReportItem[];
   byUser?: Array<{ name: string; items: ReportItem[] }>;
+};
+
+type ReportInsights = {
+  summary: string;
+  highlights: string[];
+  risks: string[];
+  recommendations: string[];
+  memberInsights: Array<{
+    name: string;
+    score: number;
+    completed: number;
+    progress: number;
+    blockers: number;
+    decisions: number;
+    signal: string;
+  }>;
 };
 
 type ReportItem = {
@@ -749,6 +766,7 @@ function Reports({
             </div>
             <StatusBadge value={selectedReport.status} />
           </div>
+          <ReportInsightsPanel report={selectedReport} />
           <MemberBreakdown report={selectedReport} />
           {selectedReport.content ? <pre className="report-preview">{selectedReport.content}</pre> : null}
         </Panel>
@@ -757,8 +775,44 @@ function Reports({
   );
 }
 
+function ReportInsightsPanel({ report }: { report: ReportRow }) {
+  const insights = report.structuredContent?.insights;
+
+  if (!insights) {
+    return null;
+  }
+
+  return (
+    <div className="insight-grid">
+      <article className="insight-card wide">
+        <span>Summary</span>
+        <strong>{insights.summary}</strong>
+      </article>
+      <InsightList title="Highlights" items={insights.highlights} />
+      <InsightList title="Risks" items={insights.risks} />
+      <InsightList title="Actions" items={insights.recommendations} />
+    </div>
+  );
+}
+
+function InsightList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <article className="insight-card">
+      <span>{title}</span>
+      <ul>
+        {items.slice(0, 4).map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
 function MemberBreakdown({ report }: { report: ReportRow }) {
   const byUser = report.structuredContent?.byUser ?? [];
+  const memberInsights = new Map(
+    (report.structuredContent?.insights?.memberInsights ?? []).map((item) => [item.name, item]),
+  );
 
   if (byUser.length === 0) {
     return <div className="empty">No member performance evidence in this report</div>;
@@ -771,12 +825,16 @@ function MemberBreakdown({ report }: { report: ReportRow }) {
         const progress = group.items.filter((item) => item.eventType === 'task_progress');
         const blockers = group.items.filter((item) => item.eventType === 'blocker');
         const decisions = group.items.filter((item) => item.eventType === 'decision');
+        const insight = memberInsights.get(group.name);
 
         return (
           <article className="member-card" key={group.name}>
             <div className="performance-head">
-              <strong>{group.name}</strong>
-              <StatusBadge value={`${group.items.length} items`} />
+              <div>
+                <strong>{group.name}</strong>
+                {insight ? <span>{insight.signal}</span> : null}
+              </div>
+              <StatusBadge value={insight ? `score ${insight.score}` : `${group.items.length} items`} />
             </div>
             <div className="score-row">
               <span>Done <strong>{completed.length}</strong></span>
