@@ -12,6 +12,19 @@ export interface ReportItem {
   createdAt: Date;
 }
 
+export interface ReportMessage {
+  groupId: string;
+  topicId: string | null;
+  telegramMessageId: string;
+  text: string | null;
+  sentAt: Date;
+  groupTitle: string | null;
+  topicName: string | null;
+  displayName: string | null;
+  username: string | null;
+  telegramUserId: string | null;
+}
+
 export interface StructuredReport {
   completed: ReportItem[];
   inProgress: ReportItem[];

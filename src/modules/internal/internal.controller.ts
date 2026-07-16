@@ -21,6 +21,7 @@ import { PgBossService } from '../jobs/pg-boss.service';
 import { InternalDashboardService } from './internal-dashboard.service';
 import { InternalGroupsService } from './internal-groups.service';
 import { InternalMetricsService } from './internal-metrics.service';
+import { ReportsService } from '../reports/reports.service';
 
 @Controller('internal/jobs')
 export class InternalJobsController {
@@ -200,6 +201,7 @@ export class InternalMetricsController {
 export class InternalDashboardController {
   constructor(
     private readonly dashboard: InternalDashboardService,
+    private readonly reportsService: ReportsService,
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
   ) {}
@@ -226,6 +228,49 @@ export class InternalDashboardController {
   async reports(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
     this.assertAuthorized(token, cookie);
     return this.dashboard.reports();
+  }
+
+  @Post('reports/generate')
+  async generateReport(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+    @Body()
+    body: {
+      groupId?: string;
+      periodStart?: string;
+      periodEnd?: string;
+      reportType?: string;
+      notifyAdmins?: boolean;
+    },
+  ) {
+    this.assertAuthorized(token, cookie);
+
+    if (!body.groupId) {
+      throw new BadRequestException('groupId is required');
+    }
+
+    const periodStart = body.periodStart ? new Date(body.periodStart) : null;
+    const periodEnd = body.periodEnd ? new Date(body.periodEnd) : new Date();
+
+    if (!periodStart || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime())) {
+      throw new BadRequestException('Valid periodStart and periodEnd are required');
+    }
+
+    const group = await this.dashboard.groupById(body.groupId);
+    if (!group) {
+      throw new NotFoundException(`Group ${body.groupId} was not found`);
+    }
+
+    return this.reportsService.generateGroupReport({
+      groupId: group.id,
+      title: group.title ?? group.id,
+      periodStart,
+      periodEnd,
+      reportType: body.reportType ?? 'dashboard_performance',
+      telegramChatId: null,
+      telegramThreadId: null,
+      notifyAdmins: body.notifyAdmins !== false,
+    });
   }
 
   @Get('messages')

@@ -2,16 +2,21 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { appConfig } from '../../config/app.config';
 import { telegramConfig } from '../../config/telegram.config';
+import { MessageChunkerService } from '../ai/message-chunker.service';
+import { TaskExtractorService } from '../ai/task-extractor.service';
+import { ExtractedEvent } from '../ai/schemas/extracted-event.schema';
 import { TelegramBotService } from '../telegram/telegram-bot.service';
 import { ReportFormatterService } from './report-formatter.service';
 import { ReportsRepository } from './reports.repository';
-import { ReportItem, StructuredReport } from './reports.types';
+import { ReportItem, ReportMessage, StructuredReport } from './reports.types';
 
 @Injectable()
 export class ReportsService {
   constructor(
     private readonly repository: ReportsRepository,
     private readonly formatter: ReportFormatterService,
+    private readonly extractor: TaskExtractorService,
+    private readonly chunker: MessageChunkerService,
     private readonly telegram: TelegramBotService,
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
@@ -27,10 +32,10 @@ export class ReportsService {
     notifyAdmins?: boolean;
   }): Promise<{ generated: number; sent: number }> {
     const groups = input.groupId
-      ? (await this.repository.listGroupsWithEvents(input.periodStart, input.periodEnd)).filter(
+      ? (await this.repository.listGroupsWithMessages(input.periodStart, input.periodEnd)).filter(
           (group) => group.id === input.groupId,
         )
-      : await this.repository.listGroupsWithEvents(input.periodStart, input.periodEnd);
+      : await this.repository.listGroupsWithMessages(input.periodStart, input.periodEnd);
 
     let generated = 0;
     let sent = 0;
@@ -66,19 +71,19 @@ export class ReportsService {
     topicId?: string | null;
     notifyAdmins?: boolean;
   }): Promise<{ content: string; reportId: string; sent: boolean }> {
-    const items =
-      input.topicId === undefined
-        ? await this.repository.listReportItems({
-            groupId: input.groupId,
-            periodStart: input.periodStart,
-            periodEnd: input.periodEnd,
-          })
-        : await this.repository.listReportItemsForTopic({
-            groupId: input.groupId,
-            topicId: input.topicId,
-            periodStart: input.periodStart,
-            periodEnd: input.periodEnd,
-          });
+    const messages = await this.repository.listReportMessages({
+      groupId: input.groupId,
+      topicId: input.topicId,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+    });
+    const items = await this.evaluateMessages({
+      groupId: input.groupId,
+      topicId: input.topicId,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      messages,
+    });
     const structured = this.structure(items);
     const content = this.formatter.format({
       title: input.title,
@@ -161,6 +166,77 @@ export class ReportsService {
         items,
         (item) => item.actorDisplayName ?? item.assigneeDisplayName ?? 'Unknown',
       ),
+    };
+  }
+
+  private async evaluateMessages(input: {
+    groupId: string;
+    topicId?: string | null;
+    periodStart: Date;
+    periodEnd: Date;
+    messages: ReportMessage[];
+  }): Promise<ReportItem[]> {
+    const messageByTelegramId = new Map(
+      input.messages.map((message) => [Number(message.telegramMessageId), message]),
+    );
+    const items: ReportItem[] = [];
+
+    for (const chunk of this.chunker.chunk(
+      input.messages.map((message) => ({
+        groupId: message.groupId,
+        topicId: message.topicId,
+        telegramMessageId: Number(message.telegramMessageId),
+        text: message.text ?? '',
+        sentAt: message.sentAt.toISOString(),
+        groupTitle: message.groupTitle,
+        topicName: message.topicName,
+        displayName: message.displayName,
+        telegramUserId: message.telegramUserId,
+      })),
+    )) {
+      const result = await this.extractor.extract({
+        groupId: input.groupId,
+        topicId: input.topicId ?? null,
+        periodStart: input.periodStart.toISOString(),
+        periodEnd: input.periodEnd.toISOString(),
+        messages: chunk,
+      });
+
+      for (const event of result.output.events) {
+        if (event.type === 'ignore') {
+          continue;
+        }
+        items.push(this.eventToReportItem(event, messageByTelegramId));
+      }
+    }
+
+    return items;
+  }
+
+  private eventToReportItem(
+    event: ExtractedEvent,
+    messageByTelegramId: Map<number, ReportMessage>,
+  ): ReportItem {
+    const sourceMessageIds = event.sourceMessageIds;
+    const sourceMessage = sourceMessageIds.map((id) => messageByTelegramId.get(id)).find(Boolean) ?? null;
+    const displayName =
+      sourceMessage?.displayName ??
+      (sourceMessage?.username ? `@${sourceMessage.username}` : null) ??
+      sourceMessage?.telegramUserId ??
+      'Unknown';
+
+    return {
+      taskId: null,
+      taskTitle: event.title ?? event.summary,
+      topicId: sourceMessage?.topicId ?? null,
+      eventType: event.type,
+      summary: event.summary,
+      topicName: sourceMessage?.topicName ?? 'General',
+      actorDisplayName: displayName,
+      assigneeDisplayName: displayName,
+      sourceMessageIds,
+      confidence: event.confidence.toFixed(3),
+      createdAt: sourceMessage?.sentAt ?? new Date(),
     };
   }
 

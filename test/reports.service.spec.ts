@@ -3,31 +3,25 @@ import { TelegramBotService } from '../src/modules/telegram/telegram-bot.service
 import { ReportFormatterService } from '../src/modules/reports/report-formatter.service';
 import { ReportsRepository } from '../src/modules/reports/reports.repository';
 import { ReportsService } from '../src/modules/reports/reports.service';
-import { ReportItem } from '../src/modules/reports/reports.types';
 
 class FakeReportsRepository {
   readonly sentReports: Array<{ reportId: string; telegramMessageId: string | null }> = [];
 
-  async listReportItems(): Promise<ReportItem[]> {
+  async listReportMessages() {
     return [
       {
-        taskId: 'task-1',
-        taskTitle: 'Finish report test',
+        groupId: 'group-1',
         topicId: 'topic-1',
-        eventType: 'task_completed',
-        summary: 'A report test task was completed.',
+        telegramMessageId: '1002',
+        text: 'Đã hoàn thành report test.',
+        sentAt: new Date('2026-07-15T01:00:00.000Z'),
+        groupTitle: 'Engineering',
         topicName: 'Backend',
-        actorDisplayName: 'Alice',
-        assigneeDisplayName: 'Alice',
-        sourceMessageIds: [1002],
-        confidence: '0.900',
-        createdAt: new Date('2026-07-15T01:00:00.000Z'),
+        displayName: 'Alice',
+        username: 'alice',
+        telegramUserId: '42',
       },
     ];
-  }
-
-  async listReportItemsForTopic(): Promise<ReportItem[]> {
-    return this.listReportItems();
   }
 
   async upsertReport(): Promise<string> {
@@ -48,6 +42,33 @@ class FakeTelegramBotService {
   }
 }
 
+class FakeExtractor {
+  async extract() {
+    return {
+      aiRunId: 'ai-run-1',
+      skipped: false,
+      output: {
+        events: [
+          {
+            type: 'task_completed',
+            title: 'Report test',
+            summary: 'Đã hoàn thành report test.',
+            assigneeTelegramUserId: '42',
+            confidence: 0.9,
+            sourceMessageIds: [1002],
+          },
+        ],
+      },
+    };
+  }
+}
+
+class FakeChunker {
+  chunk<T>(items: T[]): T[][] {
+    return [items];
+  }
+}
+
 describe('ReportsService', () => {
   it('generates, stores, and sends a group report', async () => {
     const repository = new FakeReportsRepository();
@@ -55,7 +76,11 @@ describe('ReportsService', () => {
     const service = new ReportsService(
       repository as unknown as ReportsRepository,
       new ReportFormatterService(),
+      new FakeExtractor() as never,
+      new FakeChunker() as never,
       bot as unknown as TelegramBotService,
+      { dashboardUrl: 'https://task.orokucode.com' } as never,
+      { adminTelegramUserIds: [] } as never,
     );
 
     const result = await service.generateGroupReport({
@@ -70,7 +95,7 @@ describe('ReportsService', () => {
     });
 
     expect(result.sent).toBe(true);
-    expect(bot.messages[0]).toContain('Finish report test');
+    expect(bot.messages[0]).toContain('Đã hoàn thành report test');
     expect(repository.sentReports).toEqual([{ reportId: 'report-1', telegramMessageId: '1' }]);
   });
 });

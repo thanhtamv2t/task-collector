@@ -60,9 +60,9 @@ describe('buildExtractionPrompt', () => {
       ],
     });
 
-    expect(prompt).toContain('daily work report items');
-    expect(prompt).toContain('The actor/assignee must be the sender');
+    expect(prompt).toContain('performance evaluator');
+    expect(prompt).toContain('The actor must be the sender');
     expect(prompt).toContain('message_id: 1002');
-    expect(prompt).toContain('Existing tasks are not authoritative');
+    expect(prompt).toContain('Existing task records are not used');
   });
 });

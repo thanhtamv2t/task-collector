@@ -58,10 +58,10 @@ describe('ReportFormatterService', () => {
       },
     });
 
-    expect(content).toContain('Weekly performance report');
-    expect(content).toContain('Performance theo user');
-    expect(content).toContain('✅ Hoàn thành');
-    expect(content).toContain('Finish report generator \\[src: 1002\\]');
+    expect(content).toContain('Performance report');
+    expect(content).toContain('Performance by member');
+    expect(content).toContain('✅ Completed work');
+    expect(content).toContain('A task was completed\\. \\[src: 1002\\]');
     expect(content).toContain('⚠️ Cần review AI');
   });
 

@@ -33,14 +33,26 @@ export class InternalDashboardService {
           count(distinct ${telegramTopics.id}) filter (where ${telegramTopics.isMonitored} = true)::int
         `,
         messageCount: sql<number>`count(distinct ${messages.id})::int`,
-        taskCount: sql<number>`count(distinct ${tasks.id})::int`,
       })
       .from(telegramGroups)
       .leftJoin(telegramTopics, eq(telegramTopics.groupId, telegramGroups.id))
       .leftJoin(messages, eq(messages.groupId, telegramGroups.id))
-      .leftJoin(tasks, eq(tasks.groupId, telegramGroups.id))
       .groupBy(telegramGroups.id)
       .orderBy(desc(telegramGroups.updatedAt));
+  }
+
+  async groupById(groupId: string) {
+    const [group] = await this.database.db
+      .select({
+        id: telegramGroups.id,
+        title: telegramGroups.title,
+        reportChatId: telegramGroups.reportChatId,
+      })
+      .from(telegramGroups)
+      .where(eq(telegramGroups.id, groupId))
+      .limit(1);
+
+    return group ?? null;
   }
 
   async topics() {
@@ -55,12 +67,10 @@ export class InternalDashboardService {
         reportThreadId: telegramTopics.reportThreadId,
         updatedAt: telegramTopics.updatedAt,
         messageCount: sql<number>`count(distinct ${messages.id})::int`,
-        taskCount: sql<number>`count(distinct ${tasks.id})::int`,
       })
       .from(telegramTopics)
       .leftJoin(telegramGroups, eq(telegramGroups.id, telegramTopics.groupId))
       .leftJoin(messages, eq(messages.topicId, telegramTopics.id))
-      .leftJoin(tasks, eq(tasks.topicId, telegramTopics.id))
       .groupBy(telegramTopics.id, telegramGroups.title)
       .orderBy(desc(telegramTopics.updatedAt));
   }
@@ -105,6 +115,7 @@ export class InternalDashboardService {
         telegramThreadId: reports.telegramThreadId,
         telegramMessageId: reports.telegramMessageId,
         content: reports.content,
+        structuredContent: reports.structuredContent,
         sentAt: reports.sentAt,
         createdAt: reports.createdAt,
       })
@@ -187,33 +198,42 @@ export class InternalDashboardService {
     const periodUnit = mode === 'day' ? 'day' : mode === 'month' ? 'month' : 'week';
 
     const rowsResult = await this.database.db.execute(sql.raw(`
-      with grouped as (
+      with report_items as (
         select
-          date_trunc('${periodUnit}', te.occurred_at) as period_start,
-          date_trunc('${periodUnit}', te.occurred_at) + interval '1 ${periodUnit}' as period_end,
-          te.actor_user_id,
-          coalesce(u.display_name, u.username, u.telegram_user_id, 'Unknown') as member_name,
-          u.username,
-          u.telegram_user_id,
+          date_trunc('${periodUnit}', r.period_start) as period_start,
+          date_trunc('${periodUnit}', r.period_start) + interval '1 ${periodUnit}' as period_end,
+          coalesce(user_group.value->>'name', 'Unknown') as member_name,
+          item.value->>'eventType' as event_type,
+          item.value->>'summary' as summary,
+          item.value->'sourceMessageIds' as source_message_ids,
+          coalesce(item.value->>'createdAt', r.created_at::text) as occurred_at
+        from reports r
+        cross join lateral jsonb_array_elements(r.structured_content->'byUser') as user_group(value)
+        cross join lateral jsonb_array_elements(user_group.value->'items') as item(value)
+      ),
+      grouped as (
+        select
+          period_start,
+          period_end,
+          member_name,
           count(*)::int as total_items,
-          count(*) filter (where te.event_type = 'task_completed')::int as completed_items,
-          count(*) filter (where te.event_type = 'task_progress')::int as progress_items,
-          count(*) filter (where te.event_type = 'blocker')::int as blocker_items,
-          count(*) filter (where te.event_type = 'decision')::int as decision_items,
-          max(te.occurred_at) as last_activity_at,
+          count(*) filter (where event_type = 'task_completed')::int as completed_items,
+          count(*) filter (where event_type = 'task_progress')::int as progress_items,
+          count(*) filter (where event_type = 'blocker')::int as blocker_items,
+          count(*) filter (where event_type = 'decision')::int as decision_items,
+          max(occurred_at) as last_activity_at,
           jsonb_agg(
             jsonb_build_object(
-              'summary', te.summary,
-              'eventType', te.event_type,
-              'sourceMessageIds', te.source_message_ids,
-              'occurredAt', te.occurred_at
+              'summary', summary,
+              'eventType', event_type,
+              'sourceMessageIds', source_message_ids,
+              'occurredAt', occurred_at
             )
-            order by te.occurred_at desc
+            order by occurred_at desc
           ) as items
-        from task_events te
-        left join telegram_users u on u.id = te.actor_user_id
-        where te.event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
-        group by period_start, period_end, te.actor_user_id, member_name, u.username, u.telegram_user_id
+        from report_items
+        where event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
+        group by period_start, period_end, member_name
       )
       select *
       from grouped
@@ -224,9 +244,13 @@ export class InternalDashboardService {
     const countResult = await this.database.db.execute(sql.raw(`
       select count(*)::int as total
       from (
-        select date_trunc('${periodUnit}', te.occurred_at), te.actor_user_id
-        from task_events te
-        where te.event_type in ('task_completed', 'task_progress', 'blocker', 'decision')
+        select
+          date_trunc('${periodUnit}', r.period_start),
+          coalesce(user_group.value->>'name', 'Unknown') as member_name
+        from reports r
+        cross join lateral jsonb_array_elements(r.structured_content->'byUser') as user_group(value)
+        cross join lateral jsonb_array_elements(user_group.value->'items') as item(value)
+        where item.value->>'eventType' in ('task_completed', 'task_progress', 'blocker', 'decision')
         group by 1, 2
       ) rows
     `));
@@ -244,8 +268,8 @@ export class InternalDashboardService {
         periodStart: row.period_start,
         periodEnd: row.period_end,
         memberName: row.member_name,
-        username: row.username,
-        telegramUserId: row.telegram_user_id,
+        username: null,
+        telegramUserId: null,
         totalItems: row.total_items,
         completedItems: row.completed_items,
         progressItems: row.progress_items,

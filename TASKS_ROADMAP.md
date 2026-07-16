@@ -9,6 +9,7 @@
 ## Current State
 
 - Code-level implementation for all planning milestones is complete.
+- Product scope is now daily report collection and member performance evaluation; task-centric dashboard/report surfaces are being retired.
 - Remaining unchecked items in `telegram-task-reporter-plan.md` require real Telegram/OpenRouter/Docker runtime verification.
 - Milestone 0 bootstrap is implemented.
 - Milestone 1 collector foundation is implemented.
@@ -121,6 +122,10 @@
 - [x] OpenRouter runtime check script for API key/model JSON response.
 - [x] Safe shell `.env` loader for cron values containing spaces.
 - [x] Standalone VPS dashboard deploy script for rebuilding and publishing static assets.
+- [x] Report generation evaluates all Telegram messages in the selected range directly instead of reading task-filtered events.
+- [x] Dashboard report builder supports today, week-to-date, full-history, and custom ranges.
+- [x] Dashboard report detail shows generated report content and per-member performance breakdown.
+- [x] Dashboard task tab/columns are removed from the main admin surface.
 
 ## Next Up
 

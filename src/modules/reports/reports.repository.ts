@@ -1,19 +1,32 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, gte, lt } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt } from 'drizzle-orm';
 import { DatabaseService } from '../../database/database.service';
 import {
   reports,
+  messages,
   taskEvents,
   tasks,
   telegramGroups,
   telegramTopics,
   telegramUsers,
 } from '../../database/schema';
-import { ReportItem } from './reports.types';
+import { ReportItem, ReportMessage } from './reports.types';
 
 @Injectable()
 export class ReportsRepository {
   constructor(private readonly database: DatabaseService) {}
+
+  async listGroupsWithMessages(periodStart: Date, periodEnd: Date): Promise<Array<{ id: string; title: string | null; reportChatId: string | null }>> {
+    return this.database.db
+      .selectDistinct({
+        id: telegramGroups.id,
+        title: telegramGroups.title,
+        reportChatId: telegramGroups.reportChatId,
+      })
+      .from(messages)
+      .innerJoin(telegramGroups, eq(messages.groupId, telegramGroups.id))
+      .where(and(gte(messages.sentAt, periodStart), lt(messages.sentAt, periodEnd)));
+  }
 
   async listGroupsWithEvents(periodStart: Date, periodEnd: Date): Promise<Array<{ id: string; title: string | null; reportChatId: string | null }>> {
     return this.database.db
@@ -25,6 +38,42 @@ export class ReportsRepository {
       .from(taskEvents)
       .innerJoin(telegramGroups, eq(taskEvents.groupId, telegramGroups.id))
       .where(and(gte(taskEvents.occurredAt, periodStart), lt(taskEvents.occurredAt, periodEnd)));
+  }
+
+  async listReportMessages(input: {
+    groupId: string;
+    periodStart: Date;
+    periodEnd: Date;
+    topicId?: string | null;
+  }): Promise<ReportMessage[]> {
+    const filters = [
+      eq(messages.groupId, input.groupId),
+      gte(messages.sentAt, input.periodStart),
+      lt(messages.sentAt, input.periodEnd),
+    ];
+
+    if (input.topicId !== undefined) {
+      filters.push(input.topicId === null ? isNull(messages.topicId) : eq(messages.topicId, input.topicId));
+    }
+
+    return this.database.db
+      .select({
+        groupId: messages.groupId,
+        topicId: messages.topicId,
+        telegramMessageId: messages.telegramMessageId,
+        text: messages.text,
+        sentAt: messages.sentAt,
+        groupTitle: telegramGroups.title,
+        topicName: telegramTopics.name,
+        displayName: telegramUsers.displayName,
+        username: telegramUsers.username,
+        telegramUserId: telegramUsers.telegramUserId,
+      })
+      .from(messages)
+      .innerJoin(telegramGroups, eq(messages.groupId, telegramGroups.id))
+      .leftJoin(telegramTopics, eq(messages.topicId, telegramTopics.id))
+      .leftJoin(telegramUsers, eq(messages.userId, telegramUsers.id))
+      .where(and(...filters));
   }
 
   async listReportItems(input: {

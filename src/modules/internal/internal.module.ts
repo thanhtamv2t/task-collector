@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JobsModule } from '../jobs/jobs.module';
+import { ReportsModule } from '../reports/reports.module';
 import { InternalDashboardService } from './internal-dashboard.service';
 import { InternalGroupsService } from './internal-groups.service';
 import { InternalMetricsService } from './internal-metrics.service';
@@ -11,7 +12,7 @@ import {
 } from './internal.controller';
 
 @Module({
-  imports: [JobsModule],
+  imports: [JobsModule, ReportsModule],
   controllers: [
     InternalJobsController,
     InternalGroupsController,
