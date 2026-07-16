@@ -4,8 +4,12 @@ set -eu
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-EXPORT_FILE="${1:-result.json}"
-shift || true
+if [ "$#" -gt 0 ]; then
+  EXPORT_FILE="$1"
+  shift
+else
+  EXPORT_FILE="result.json"
+fi
 
 if [ ! -f "$EXPORT_FILE" ]; then
   printf '[telegram-import] Export file not found: %s\n' "$EXPORT_FILE" >&2
