@@ -18,7 +18,11 @@ export class DailyReportReminderJob {
     private readonly telegram: ConfigType<typeof telegramConfig>,
   ) {}
 
-  async handle(): Promise<{ groups: number; remindedUsers: number }> {
+  async handle(): Promise<{
+    groups: number;
+    remindedUsers: number;
+    failedGroups: Array<{ telegramChatId: string; title: string | null; error: string }>;
+  }> {
     const now = new Date();
     const since = this.startOfLocalDay(now, this.app.timezone);
     const groups = await this.repository.listDailyReportReminderTargets({
@@ -27,23 +31,30 @@ export class DailyReportReminderJob {
     });
 
     let remindedUsers = 0;
+    const failedGroups: Array<{ telegramChatId: string; title: string | null; error: string }> = [];
     for (const group of groups) {
       if (group.users.length === 0) {
         continue;
       }
 
       const mentions = group.users.map((user) => this.mention(user)).join(' ');
-      await this.bot.sendMessage(
-        group.telegramChatId,
-        `Nhắc daily report sau 21:00: ${mentions}\nBạn chưa gửi daily report hôm nay.`,
-        null,
-        'MarkdownV2',
-      );
-      remindedUsers += group.users.length;
-      this.logger.log(`Reminded ${group.users.length} user(s) in group ${group.telegramChatId}`);
+      try {
+        await this.bot.sendMessage(
+          group.telegramChatId,
+          `Nhắc daily report sau 21:00: ${mentions}\nBạn chưa gửi daily report hôm nay.`,
+          null,
+          'MarkdownV2',
+        );
+        remindedUsers += group.users.length;
+        this.logger.log(`Reminded ${group.users.length} user(s) in group ${group.telegramChatId}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Telegram send failed';
+        failedGroups.push({ telegramChatId: group.telegramChatId, title: group.title, error: message });
+        this.logger.error(`Failed to remind group ${group.telegramChatId}: ${message}`);
+      }
     }
 
-    return { groups: groups.length, remindedUsers };
+    return { groups: groups.length, remindedUsers, failedGroups };
   }
 
   private mention(user: {
