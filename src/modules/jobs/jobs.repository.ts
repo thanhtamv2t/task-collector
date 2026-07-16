@@ -279,7 +279,12 @@ export class JobsRepository {
     since: Date;
     adminTelegramUserIds: string[];
   }): Promise<DailyReportReminderGroup[]> {
-    const adminIds = input.adminTelegramUserIds.length ? input.adminTelegramUserIds : ['__none__'];
+    const adminFilter = input.adminTelegramUserIds.length
+      ? sql`and u.telegram_user_id not in (${sql.join(
+          input.adminTelegramUserIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`
+      : sql``;
     const result = await this.database.db.execute(sql`
       with group_members as (
         select distinct
@@ -289,7 +294,7 @@ export class JobsRepository {
           u.display_name
         from messages m
         inner join telegram_users u on u.id = m.user_id
-        where u.telegram_user_id <> all(${adminIds})
+        where 1 = 1 ${adminFilter}
       ),
       reporters_today as (
         select distinct m.group_id, u.telegram_user_id

@@ -78,7 +78,12 @@ export class InternalJobsController {
     @Headers('cookie') cookie: string | undefined,
   ) {
     this.assertAuthorized(token, cookie);
-    return this.dailyReportReminderJob.handle();
+    try {
+      return await this.dailyReportReminderJob.handle();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Daily report reminder failed';
+      throw new BadRequestException(message);
+    }
   }
 
   @Get(':id')
