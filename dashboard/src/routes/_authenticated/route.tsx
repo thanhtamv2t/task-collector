@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AuthenticatedLayout } from '@/components/layout/authenticated-layout'
+import { DashboardRouteShell } from '@/features/dashboard/route-shell'
 
 export const Route = createFileRoute('/_authenticated')({
-  component: AuthenticatedLayout,
+  component: DashboardRouteShell,
 })

@@ -1,5 +1,8 @@
 import {
-  Activity,
+  Outlet,
+  useNavigate,
+} from '@tanstack/react-router'
+import {
   BrainCircuit,
   CalendarDays,
   CheckCircle2,
@@ -15,9 +18,17 @@ import {
   SearchIcon,
   Shield,
   Trash2,
+  type LucideIcon,
   Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
@@ -51,7 +62,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type Metrics = {
   messages: {
@@ -244,7 +254,6 @@ type JobAction =
   | 'retention'
   | 'daily-report-reminder'
 
-type SectionId = 'overview' | 'performance' | 'reports' | 'groups' | 'messages' | 'jobs'
 type PerformanceMode = 'day' | 'week' | 'month' | 'year'
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -259,6 +268,39 @@ const initialData: DashboardData = {
   aiRuns: [],
   performance: null,
 }
+
+type DashboardContextValue = {
+  data: DashboardData
+  filtered: DashboardData
+  user: AuthUser
+  loading: boolean
+  error: string | null
+  query: string
+  lastUpdated: string | null
+  performanceMode: PerformanceMode
+  performanceMember: string
+  performanceFrom: string
+  performanceTo: string
+  generatingReport: boolean
+  selectedReportId: string | null
+  setQuery: (query: string) => void
+  load: () => Promise<void>
+  runJob: (job: JobAction) => Promise<void>
+  generateReport: (input: {
+    groupId: string
+    periodStart: string
+    periodEnd: string
+    reportType: string
+  }) => Promise<void>
+  openReport: (reportId: string) => void
+  openMaintenance: () => void
+  setPerformanceMember: (member: string) => void
+  setPerformanceDateRange: (from: string, to: string) => void
+  setPerformanceMode: (mode: PerformanceMode) => void
+  setPerformancePage: (page: number) => void
+}
+
+const DashboardContext = createContext<DashboardContextValue | null>(null)
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, { credentials: 'include' })
@@ -285,11 +327,9 @@ async function postJson<T>(path: string, body: unknown = {}): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function Dashboard() {
+export function DashboardShell() {
+  const navigate = useNavigate()
   const initialReportId = new URLSearchParams(window.location.search).get('reportId')
-  const [activeTab, setActiveTab] = useState<SectionId>(
-    initialReportId ? 'reports' : 'overview'
-  )
   const [selectedReportId, setSelectedReportId] = useState<string | null>(
     initialReportId
   )
@@ -380,10 +420,14 @@ export function Dashboard() {
   }, [load])
 
   useEffect(() => {
-    void checkAuth()
+    const timer = window.setTimeout(() => {
+      void checkAuth()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [checkAuth])
 
-  const runJob = async (job: JobAction) => {
+  const runJob = useCallback(async (job: JobAction) => {
     setLoading(true)
     setError(null)
 
@@ -400,9 +444,9 @@ export function Dashboard() {
       toast.error(message)
       setLoading(false)
     }
-  }
+  }, [load])
 
-  const generateReport = async (input: {
+  const generateReport = useCallback(async (input: {
     groupId: string
     periodStart: string
     periodEnd: string
@@ -418,7 +462,7 @@ export function Dashboard() {
       )
       setSelectedReportId(result.reportId)
       setReportDrawerOpen(true)
-      setActiveTab('reports')
+      void navigate({ to: '/reports' })
       toast.success('Report generated')
       await load()
     } catch (err) {
@@ -431,7 +475,7 @@ export function Dashboard() {
     } finally {
       setGeneratingReport(false)
     }
-  }
+  }, [load, navigate])
 
   const cleanDerivedData = async () => {
     setCleaningDerived(true)
@@ -463,6 +507,64 @@ export function Dashboard() {
   const filtered = useMemo(() => filterData(data, query), [data, query])
   const selectedReport =
     data.reports.find((report) => report.id === selectedReportId) ?? null
+  const contextValue = useMemo<DashboardContextValue>(
+    () => ({
+      data,
+      filtered,
+      user: user as AuthUser,
+      loading,
+      error,
+      query,
+      lastUpdated,
+      performanceMode,
+      performanceMember,
+      performanceFrom,
+      performanceTo,
+      generatingReport,
+      selectedReportId,
+      setQuery,
+      load,
+      runJob,
+      generateReport,
+      openReport: (reportId) => {
+        setSelectedReportId(reportId)
+        setReportDrawerOpen(true)
+      },
+      openMaintenance: () => setMaintenanceOpen(true),
+      setPerformanceMember: (member) => {
+        setPerformanceMember(member)
+        setPerformancePage(1)
+      },
+      setPerformanceDateRange: (from, to) => {
+        setPerformanceFrom(from)
+        setPerformanceTo(to)
+        setPerformancePage(1)
+      },
+      setPerformanceMode: (mode) => {
+        setPerformanceMode(mode)
+        setPerformancePage(1)
+      },
+      setPerformancePage,
+    }),
+    [
+      data,
+      error,
+      filtered,
+      generateReport,
+      generatingReport,
+      lastUpdated,
+      load,
+      loading,
+      performanceFrom,
+      performanceMember,
+      performanceMode,
+      performanceTo,
+      query,
+      runJob,
+      selectedReportId,
+      user,
+    ]
+  )
 
   if (user === undefined) {
     return <AuthScreen loading={loading} error={error} />
@@ -532,77 +634,9 @@ export function Dashboard() {
 
         {error ? <ErrorBanner message={error} /> : null}
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as SectionId)}
-          className='space-y-4'
-        >
-          <div className='overflow-x-auto pb-2'>
-            <TabsList>
-              <TabsTrigger value='overview'>Overview</TabsTrigger>
-              <TabsTrigger value='performance'>Performance</TabsTrigger>
-              <TabsTrigger value='reports'>Reports</TabsTrigger>
-              <TabsTrigger value='groups'>Groups</TabsTrigger>
-              <TabsTrigger value='messages'>Messages</TabsTrigger>
-              <TabsTrigger value='jobs'>Jobs</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value='overview' className='space-y-4'>
-            <OverviewTab
-              data={data}
-              metrics={data.metrics}
-              onRunJob={runJob}
-              onOpenMaintenance={() => setMaintenanceOpen(true)}
-            />
-          </TabsContent>
-          <TabsContent value='performance' className='space-y-4'>
-            <PerformanceTab
-              performance={data.performance}
-              mode={performanceMode}
-              member={performanceMember}
-              from={performanceFrom}
-              to={performanceTo}
-              members={data.performance?.members ?? []}
-              onMemberChange={(member) => {
-                setPerformanceMember(member)
-                setPerformancePage(1)
-              }}
-              onDateChange={(from, to) => {
-                setPerformanceFrom(from)
-                setPerformanceTo(to)
-                setPerformancePage(1)
-              }}
-              onModeChange={(mode) => {
-                setPerformanceMode(mode)
-                setPerformancePage(1)
-              }}
-              onPageChange={setPerformancePage}
-            />
-          </TabsContent>
-          <TabsContent value='reports' className='space-y-4'>
-            <ReportsTab
-              groups={data.groups}
-              reports={filtered.reports}
-              selectedReportId={selectedReportId}
-              generating={generatingReport}
-              onGenerate={generateReport}
-              onSelectReport={(reportId) => {
-                setSelectedReportId(reportId)
-                setReportDrawerOpen(true)
-              }}
-            />
-          </TabsContent>
-          <TabsContent value='groups' className='space-y-4'>
-            <GroupsTab groups={filtered.groups} topics={filtered.topics} />
-          </TabsContent>
-          <TabsContent value='messages' className='space-y-4'>
-            <MessagesTab messages={filtered.messages} />
-          </TabsContent>
-          <TabsContent value='jobs' className='space-y-4'>
-            <JobsTab jobs={filtered.jobs} aiRuns={filtered.aiRuns} onRunJob={runJob} />
-          </TabsContent>
-        </Tabs>
+        <DashboardContext.Provider value={contextValue}>
+          <Outlet />
+        </DashboardContext.Provider>
       </Main>
 
       <ReportSheet
@@ -618,6 +652,98 @@ export function Dashboard() {
       />
     </>
   )
+}
+
+function useDashboard() {
+  const context = useContext(DashboardContext)
+
+  if (!context) {
+    throw new Error('useDashboard must be used within DashboardShell')
+  }
+
+  return context
+}
+
+export function DashboardOverview() {
+  const { data, runJob, openMaintenance } = useDashboard()
+
+  return (
+    <OverviewTab
+      data={data}
+      metrics={data.metrics}
+      onRunJob={runJob}
+      onOpenMaintenance={openMaintenance}
+    />
+  )
+}
+
+export function DashboardPerformance() {
+  const {
+    data,
+    performanceMode,
+    performanceMember,
+    performanceFrom,
+    performanceTo,
+    setPerformanceMember,
+    setPerformanceDateRange,
+    setPerformanceMode,
+    setPerformancePage,
+  } = useDashboard()
+
+  return (
+    <PerformanceTab
+      performance={data.performance}
+      mode={performanceMode}
+      member={performanceMember}
+      from={performanceFrom}
+      to={performanceTo}
+      members={data.performance?.members ?? []}
+      onMemberChange={setPerformanceMember}
+      onDateChange={setPerformanceDateRange}
+      onModeChange={setPerformanceMode}
+      onPageChange={setPerformancePage}
+    />
+  )
+}
+
+export function DashboardReports() {
+  const {
+    data,
+    filtered,
+    selectedReportId,
+    generatingReport,
+    generateReport,
+    openReport,
+  } = useDashboard()
+
+  return (
+    <ReportsTab
+      groups={data.groups}
+      reports={filtered.reports}
+      selectedReportId={selectedReportId}
+      generating={generatingReport}
+      onGenerate={generateReport}
+      onSelectReport={openReport}
+    />
+  )
+}
+
+export function DashboardGroups() {
+  const { filtered } = useDashboard()
+
+  return <GroupsTab groups={filtered.groups} topics={filtered.topics} />
+}
+
+export function DashboardMessages() {
+  const { filtered } = useDashboard()
+
+  return <MessagesTab messages={filtered.messages} />
+}
+
+export function DashboardJobs() {
+  const { filtered, runJob } = useDashboard()
+
+  return <JobsTab jobs={filtered.jobs} aiRuns={filtered.aiRuns} onRunJob={runJob} />
 }
 
 function AuthScreen({ loading = false, error }: { loading?: boolean; error?: string | null }) {
@@ -943,12 +1069,7 @@ function ReportsTab({
   const [customStart, setCustomStart] = useState(toDatetimeLocal(startOfWeek()))
   const [customEnd, setCustomEnd] = useState(toDatetimeLocal(new Date()))
   const range = reportRange(preset, customStart, customEnd)
-
-  useEffect(() => {
-    if (!groupId && defaultGroupId) {
-      setGroupId(defaultGroupId)
-    }
-  }, [defaultGroupId, groupId])
+  const activeGroupId = groupId || defaultGroupId
 
   return (
     <>
@@ -966,7 +1087,7 @@ function ReportsTab({
         <CardContent className='grid gap-3 lg:grid-cols-[1fr_180px_1fr_auto] lg:items-end'>
           <Field label='Group'>
             <select
-              value={groupId}
+              value={activeGroupId}
               onChange={(event) => setGroupId(event.target.value)}
               className='h-9 rounded-md border bg-background px-3 text-sm'
             >
@@ -1010,10 +1131,10 @@ function ReportsTab({
             <div />
           )}
           <Button
-            disabled={!groupId || generating}
+            disabled={!activeGroupId || generating}
             onClick={() =>
               onGenerate({
-                groupId,
+                groupId: activeGroupId,
                 periodStart: range.start.toISOString(),
                 periodEnd: range.end.toISOString(),
                 reportType: preset === 'today' ? 'daily_performance' : 'performance',
@@ -1421,7 +1542,7 @@ function MetricCard({
 }: {
   title: string
   value: number
-  icon: typeof Activity
+  icon: LucideIcon
 }) {
   return (
     <Card>
