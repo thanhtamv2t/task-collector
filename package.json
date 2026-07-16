@@ -13,7 +13,7 @@
     "setup:vps": "sh scripts/vps-auto-setup.sh",
     "telegram:webhook": "sh scripts/setup-telegram-webhook.sh",
     "telegram:import-export": "node scripts/import-telegram-desktop-export.js",
-    "telegram:import-export:docker": "docker compose run --rm -v \"$PWD/result.json:/app/result.json:ro\" api node scripts/import-telegram-desktop-export.js /app/result.json",
+    "telegram:import-export:docker": "sh scripts/import-telegram-export-docker.sh",
     "runtime:telegram-check": "sh scripts/check-telegram-runtime.sh",
     "runtime:openrouter-check": "sh scripts/check-openrouter-runtime.sh",
     "runtime:validate": "sh scripts/validate-runtime-env.sh",

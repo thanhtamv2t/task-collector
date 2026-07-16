@@ -286,12 +286,18 @@ If the app is running only in Docker, use the container image instead:
 npm run telegram:import-export:docker
 ```
 
+That command rebuilds the `api` image before importing, so the latest importer script is available
+inside Docker. Pass a different file path or importer options after `--`:
+
+```bash
+npm run telegram:import-export:docker -- ./exports/result.json --chat-id=-1001234567890
+```
+
 For supergroups, the importer infers the Bot API chat id as `-100<export_id>`. Override it if needed:
 
 ```bash
 npm run telegram:import-export -- result.json --chat-id=-1001234567890
-docker compose run --rm -v "$PWD/result.json:/app/result.json:ro" api \
-  node scripts/import-telegram-desktop-export.js /app/result.json --chat-id=-1001234567890
+npm run telegram:import-export:docker -- result.json --chat-id=-1001234567890
 ```
 
 The importer skips service and empty messages by default, inserts imported messages as `pending`,

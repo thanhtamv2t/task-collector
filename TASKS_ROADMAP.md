@@ -106,6 +106,7 @@
 - [x] VPS deploy script configures task.orokucode.com with Nginx, SSL, dashboard static assets, and required env checks.
 - [x] Docker runtime image includes Drizzle config for VPS migrations.
 - [x] Telegram Desktop JSON import script for backfilling old messages.
+- [x] Docker import wrapper rebuilds the API image before importing Telegram Desktop exports.
 - [x] Telegram API runtime check script for bot token/webhook/test chat.
 - [x] OpenRouter runtime check script for API key/model JSON response.
 - [x] Safe shell `.env` loader for cron values containing spaces.
