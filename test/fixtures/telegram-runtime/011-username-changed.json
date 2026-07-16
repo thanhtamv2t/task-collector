@@ -1,0 +1,20 @@
+{
+  "update_id": 900011,
+  "message": {
+    "message_id": 2011,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 77,
+      "is_bot": false,
+      "first_name": "Alice",
+      "username": "alice_new"
+    },
+    "date": 1784110600,
+    "text": "Alice update: deployment runbook review is in progress."
+  }
+}

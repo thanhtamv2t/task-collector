@@ -1,0 +1,20 @@
+{
+  "update_id": 900001,
+  "message": {
+    "message_id": 2001,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 42,
+      "is_bot": false,
+      "first_name": "Admin",
+      "username": "admin"
+    },
+    "date": 1784110000,
+    "text": "/setup"
+  }
+}

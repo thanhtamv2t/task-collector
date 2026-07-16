@@ -1,0 +1,20 @@
+{
+  "update_id": 900005,
+  "message": {
+    "message_id": 2005,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 77,
+      "is_bot": false,
+      "first_name": "Alice",
+      "username": "alice"
+    },
+    "date": 1784110240,
+    "text": "Blocker: waiting for webhook DNS."
+  }
+}

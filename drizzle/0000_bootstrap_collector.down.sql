@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS reports;
+DROP TABLE IF EXISTS task_events;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS ai_runs;
+DROP TABLE IF EXISTS job_batches;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS telegram_users;
+DROP TABLE IF EXISTS telegram_topics;
+DROP TABLE IF EXISTS telegram_groups;

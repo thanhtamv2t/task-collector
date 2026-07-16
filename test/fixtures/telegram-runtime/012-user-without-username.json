@@ -1,0 +1,20 @@
+{
+  "update_id": 900012,
+  "message": {
+    "message_id": 2012,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 99,
+      "is_bot": false,
+      "first_name": "Chi",
+      "last_name": "Nguyen"
+    },
+    "date": 1784110660,
+    "text": "Chi will check backup restore steps today."
+  }
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+dashboard/node_modules
+dashboard/dist
+.pnpm-store
+.env
+.env.local
+coverage
+*.log
+.DS_Store

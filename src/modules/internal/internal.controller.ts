@@ -1,0 +1,251 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Inject,
+  NotFoundException,
+  Param,
+  Post,
+} from '@nestjs/common';
+import { ConfigType } from '@nestjs/config';
+import { appConfig } from '../../config/app.config';
+import { assertInternalAuthorized } from '../auth/dashboard-auth';
+import { JOB_QUEUE_NAMES } from '../jobs/jobs.constants';
+import { JobTriggerService } from '../jobs/job-trigger.service';
+import { PeriodInput } from '../jobs/jobs.types';
+import { PgBossService } from '../jobs/pg-boss.service';
+import { InternalDashboardService } from './internal-dashboard.service';
+import { InternalGroupsService } from './internal-groups.service';
+import { InternalMetricsService } from './internal-metrics.service';
+
+@Controller('internal/jobs')
+export class InternalJobsController {
+  constructor(
+    private readonly triggers: JobTriggerService,
+    private readonly pgBoss: PgBossService,
+    @Inject(appConfig.KEY)
+    private readonly app: ConfigType<typeof appConfig>,
+  ) {}
+
+  @Post('extract')
+  async triggerExtraction(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+    @Body() body: PeriodInput,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.runTrigger(() => this.triggers.triggerExtraction(body ?? {}));
+  }
+
+  @Post('report')
+  async triggerReport(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+    @Body() body: PeriodInput,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.runTrigger(() => this.triggers.triggerReport(body ?? {}));
+  }
+
+  @Post('retry-failed')
+  async triggerRetryFailed(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.triggers.triggerRetryFailed();
+  }
+
+  @Post('retention')
+  async triggerRetention(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.triggers.triggerRetention();
+  }
+
+  @Get(':id')
+  async getJob(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+    @Param('id') id: string,
+  ) {
+    this.assertAuthorized(token, cookie);
+
+    for (const queue of this.knownQueues()) {
+      const job = await this.pgBoss.client.getJobById(queue, id, { includeArchive: true });
+      if (job) {
+        return {
+          queue,
+          job,
+        };
+      }
+    }
+
+    throw new NotFoundException(`Job ${id} was not found`);
+  }
+
+  private assertAuthorized(token: string | undefined, cookie: string | undefined): void {
+    assertInternalAuthorized(this.app, token, cookie);
+  }
+
+  private async runTrigger<T>(callback: () => Promise<T>): Promise<T> {
+    try {
+      return await callback();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid job trigger request';
+      throw new BadRequestException(message);
+    }
+  }
+
+  private knownQueues(): string[] {
+    const schedules = (process.env.REPORT_SCHEDULES ?? '')
+      .split(',')
+      .map((schedule) => schedule.trim())
+      .filter(Boolean);
+
+    return [
+      JOB_QUEUE_NAMES.extraction,
+      JOB_QUEUE_NAMES.report,
+      JOB_QUEUE_NAMES.retryFailed,
+      ...schedules.map((_, index) => `${JOB_QUEUE_NAMES.extraction}.schedule.${index}`),
+      ...schedules.map((_, index) => `${JOB_QUEUE_NAMES.report}.schedule.${index}`),
+    ];
+  }
+}
+
+@Controller('internal/groups')
+export class InternalGroupsController {
+  constructor(
+    private readonly triggers: JobTriggerService,
+    private readonly groups: InternalGroupsService,
+    @Inject(appConfig.KEY)
+    private readonly app: ConfigType<typeof appConfig>,
+  ) {}
+
+  @Post(':id/reprocess')
+  async reprocessGroup(
+    @Headers('x-admin-token') token: string | undefined,
+    @Param('id') groupId: string,
+    @Body() body: PeriodInput,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.runTrigger(() =>
+      this.triggers.triggerExtraction({
+        ...(body ?? {}),
+        groupId,
+      }),
+    );
+  }
+
+  @Delete(':id/data')
+  async deleteGroupData(
+    @Headers('x-admin-token') token: string | undefined,
+    @Param('id') groupId: string,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.assertAuthorized(token, cookie);
+    const result = await this.groups.deleteGroupData(groupId);
+
+    if (!result.deletedGroup) {
+      throw new NotFoundException(`Group ${groupId} was not found`);
+    }
+
+    return result;
+  }
+
+  private assertAuthorized(token: string | undefined, cookie: string | undefined): void {
+    assertInternalAuthorized(this.app, token, cookie);
+  }
+
+  private async runTrigger<T>(callback: () => Promise<T>): Promise<T> {
+    try {
+      return await callback();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid group reprocess request';
+      throw new BadRequestException(message);
+    }
+  }
+}
+
+@Controller('internal/metrics')
+export class InternalMetricsController {
+  constructor(
+    private readonly metrics: InternalMetricsService,
+    @Inject(appConfig.KEY)
+    private readonly app: ConfigType<typeof appConfig>,
+  ) {}
+
+  @Get()
+  async snapshot(
+    @Headers('x-admin-token') token: string | undefined,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.assertAuthorized(token, cookie);
+    return this.metrics.snapshot();
+  }
+
+  private assertAuthorized(token: string | undefined, cookie: string | undefined): void {
+    assertInternalAuthorized(this.app, token, cookie);
+  }
+}
+
+@Controller('internal/dashboard')
+export class InternalDashboardController {
+  constructor(
+    private readonly dashboard: InternalDashboardService,
+    @Inject(appConfig.KEY)
+    private readonly app: ConfigType<typeof appConfig>,
+  ) {}
+
+  @Get('groups')
+  async groups(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.groups();
+  }
+
+  @Get('topics')
+  async topics(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.topics();
+  }
+
+  @Get('tasks')
+  async tasks(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.tasks();
+  }
+
+  @Get('reports')
+  async reports(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.reports();
+  }
+
+  @Get('messages')
+  async messages(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.messages();
+  }
+
+  @Get('jobs')
+  async jobs(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.jobs();
+  }
+
+  @Get('ai-runs')
+  async aiRuns(@Headers('x-admin-token') token: string | undefined, @Headers('cookie') cookie?: string) {
+    this.assertAuthorized(token, cookie);
+    return this.dashboard.aiRuns();
+  }
+
+  private assertAuthorized(token: string | undefined, cookie: string | undefined): void {
+    assertInternalAuthorized(this.app, token, cookie);
+  }
+}

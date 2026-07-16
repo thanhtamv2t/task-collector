@@ -1,0 +1,21 @@
+{
+  "update_id": 900009,
+  "edited_message": {
+    "message_id": 2004,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 77,
+      "is_bot": false,
+      "first_name": "Alice",
+      "username": "alice"
+    },
+    "date": 1784110180,
+    "edit_date": 1784110480,
+    "text": "Progress: collector test is almost done."
+  }
+}

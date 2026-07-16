@@ -1,0 +1,20 @@
+{
+  "update_id": 900008,
+  "message": {
+    "message_id": 2003,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 77,
+      "is_bot": false,
+      "first_name": "Alice",
+      "username": "alice"
+    },
+    "date": 1784110120,
+    "text": "Alice will finish the Telegram collector test today."
+  }
+}

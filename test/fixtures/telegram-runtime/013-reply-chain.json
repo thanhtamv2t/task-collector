@@ -1,0 +1,24 @@
+{
+  "update_id": 900013,
+  "message": {
+    "message_id": 2013,
+    "message_thread_id": 11,
+    "chat": {
+      "id": -100999000111,
+      "type": "supergroup",
+      "title": "Runtime Verification Group"
+    },
+    "from": {
+      "id": 88,
+      "is_bot": false,
+      "first_name": "Bao",
+      "username": "bao"
+    },
+    "date": 1784110720,
+    "reply_to_message": {
+      "message_id": 2012,
+      "text": "Chi will check backup restore steps today."
+    },
+    "text": "Progress on this: restore command is documented, testing is next."
+  }
+}
