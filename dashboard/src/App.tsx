@@ -13,11 +13,13 @@ import {
   Layers3,
   LogOut,
   MessageSquareText,
+  Moon,
   Play,
   RefreshCw,
   Search,
   Send,
   Shield,
+  Sun,
   Trash2,
   Users,
   X,
@@ -49,6 +51,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from './components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { toast as sonnerToast, Toaster as SonnerToaster } from 'sonner';
 
 type Metrics = {
@@ -302,6 +305,12 @@ export function App() {
   const [reportDrawerOpen, setReportDrawerOpen] = useState(Boolean(initialReportId));
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [cleaningDerived, setCleaningDerived] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => window.localStorage.getItem('task-reporter-theme') === 'dark');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    window.localStorage.setItem('task-reporter-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const message = toast.description ? `${toast.title}: ${toast.description}` : toast.title;
@@ -475,6 +484,15 @@ export function App() {
               <Search size={16} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter tables" />
             </div>
+            <button
+              className="icon-button"
+              onClick={() => setDarkMode((value) => !value)}
+              type="button"
+              title={darkMode ? 'Use light theme' : 'Use dark theme'}
+              aria-label={darkMode ? 'Use light theme' : 'Use dark theme'}
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <button className="icon-button" onClick={load} disabled={loading} type="button" title="Refresh">
               <RefreshCw size={18} className={loading ? 'spin' : undefined} />
             </button>
@@ -498,54 +516,72 @@ export function App() {
           </div>
         ) : null}
 
-        {active === 'overview' ? (
-          <Overview
-            data={data}
-            metrics={metrics}
-            onRunJob={runJob}
-            onOpenMaintenance={() => setMaintenanceOpen(true)}
-          />
-        ) : null}
-        {active === 'performance' ? (
-        <Performance
-          performance={data.performance}
-          mode={performanceMode}
-          member={performanceMember}
-          from={performanceFrom}
-          to={performanceTo}
-          members={data.performance?.members ?? []}
-          onMemberChange={(member) => {
-            setPerformanceMember(member);
-            setPerformancePage(1);
-          }}
-          onDateChange={(from, to) => {
-            setPerformanceFrom(from);
-            setPerformanceTo(to);
-            setPerformancePage(1);
-          }}
-          onModeChange={(mode) => {
-            setPerformanceMode(mode);
-              setPerformancePage(1);
-            }}
-            onPageChange={setPerformancePage}
-          />
-        ) : null}
-        {active === 'groups' ? <Groups groups={filtered.groups} topics={filtered.topics} /> : null}
-        {active === 'reports' ? (
-          <Reports
-            groups={data.groups}
-            reports={filtered.reports}
-            selectedReportId={selectedReportId}
-            generating={generatingReport}
-            onGenerate={generateReport}
-            onSelectReport={(reportId) => {
-              setSelectedReportId(reportId);
-              setReportDrawerOpen(true);
-            }}
-          />
-        ) : null}
-        {active === 'messages' ? <Messages messages={filtered.messages} /> : null}
-        {active === 'jobs' ? <Jobs jobs={filtered.jobs} onRunJob={runJob} /> : null}
+        <Tabs value={active} onValueChange={(value) => setActive(value as SectionId)} className="workspace-tabs">
+          <div className="tabs-scroll">
+            <TabsList className="template-tabs-list">
+              {navItems.map((item) => (
+                <TabsTrigger key={item.id} value={item.id}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="tab-panel">
+            <Overview
+              data={data}
+              metrics={metrics}
+              onRunJob={runJob}
+              onOpenMaintenance={() => setMaintenanceOpen(true)}
+            />
+          </TabsContent>
+          <TabsContent value="performance" className="tab-panel">
+            <Performance
+              performance={data.performance}
+              mode={performanceMode}
+              member={performanceMember}
+              from={performanceFrom}
+              to={performanceTo}
+              members={data.performance?.members ?? []}
+              onMemberChange={(member) => {
+                setPerformanceMember(member);
+                setPerformancePage(1);
+              }}
+              onDateChange={(from, to) => {
+                setPerformanceFrom(from);
+                setPerformanceTo(to);
+                setPerformancePage(1);
+              }}
+              onModeChange={(mode) => {
+                setPerformanceMode(mode);
+                setPerformancePage(1);
+              }}
+              onPageChange={setPerformancePage}
+            />
+          </TabsContent>
+          <TabsContent value="groups" className="tab-panel">
+            <Groups groups={filtered.groups} topics={filtered.topics} />
+          </TabsContent>
+          <TabsContent value="reports" className="tab-panel">
+            <Reports
+              groups={data.groups}
+              reports={filtered.reports}
+              selectedReportId={selectedReportId}
+              generating={generatingReport}
+              onGenerate={generateReport}
+              onSelectReport={(reportId) => {
+                setSelectedReportId(reportId);
+                setReportDrawerOpen(true);
+              }}
+            />
+          </TabsContent>
+          <TabsContent value="messages" className="tab-panel">
+            <Messages messages={filtered.messages} />
+          </TabsContent>
+          <TabsContent value="jobs" className="tab-panel">
+            <Jobs jobs={filtered.jobs} onRunJob={runJob} />
+          </TabsContent>
+        </Tabs>
       <ReportDrawer
         report={data.reports.find((report) => report.id === selectedReportId) ?? null}
         open={reportDrawerOpen}
