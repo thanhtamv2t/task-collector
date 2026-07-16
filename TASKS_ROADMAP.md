@@ -140,6 +140,7 @@
 - [x] Worker logs the configured reminder cron and timezone at startup.
 - [x] Dashboard reminder trigger runs the missing-report check immediately and returns reminder counts.
 - [x] VPS/dashboard deploy scripts detect and install the host Node.js `libatomic` runtime dependency.
+- [x] Dashboard Tailwind dependencies are pinned to a release-age-safe `4.3.2` lockfile version.
 
 ## Next Up
 
