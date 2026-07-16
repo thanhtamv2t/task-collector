@@ -141,6 +141,23 @@ type ReportInsights = {
     decisions: number
     signal: string
   }>
+  pmReview?: {
+    executiveSummary: string
+    teamHealth: 'strong' | 'steady' | 'at_risk' | 'critical'
+    keyThemes: string[]
+    risks: string[]
+    recommendations: string[]
+    memberAssessments: Array<{
+      name: string
+      rating: 'exceptional' | 'strong' | 'steady' | 'needs_attention' | 'insufficient_data'
+      score: number
+      assessment: string
+      strengths: string[]
+      concerns: string[]
+      nextWeekFocus: string
+      monthlyEvaluationNote: string
+    }>
+  }
 }
 
 type ReportItem = {
@@ -1137,7 +1154,10 @@ function ReportsTab({
                 groupId: activeGroupId,
                 periodStart: range.start.toISOString(),
                 periodEnd: range.end.toISOString(),
-                reportType: preset === 'today' ? 'daily_performance' : 'performance',
+                reportType:
+                  preset === 'week'
+                    ? 'weekly_performance'
+                    : 'daily_performance',
               })
             }
           >
@@ -1457,9 +1477,11 @@ function ReportInsightsPanel({ report }: { report: ReportRow }) {
     }),
     { completed: 0, progress: 0, blockers: 0, decisions: 0 }
   )
+  const pmReview = insights.pmReview
 
   return (
     <div className='space-y-3'>
+      {pmReview ? <PmReviewPanel review={pmReview} /> : null}
       <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
         <InsightMetric label='Completed' value={totals.completed} tone='success' />
         <InsightMetric label='In progress' value={totals.progress} tone='info' />
@@ -1480,6 +1502,58 @@ function ReportInsightsPanel({ report }: { report: ReportRow }) {
       <InsightList title='Actions' items={insights.recommendations} />
       </div>
     </div>
+  )
+}
+
+function PmReviewPanel({ review }: { review: NonNullable<ReportInsights['pmReview']> }) {
+  const healthLabel = {
+    strong: 'Strong',
+    steady: 'Steady',
+    at_risk: 'At risk',
+    critical: 'Critical',
+  }[review.teamHealth]
+  const healthVariant = review.teamHealth === 'strong' ? 'success' : review.teamHealth === 'steady' ? 'info' : 'warning'
+
+  return (
+    <Card className='border-primary/20 shadow-none'>
+      <CardHeader>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div>
+            <CardTitle className='text-base'>PM weekly review</CardTitle>
+            <CardDescription>Đánh giá tuần để tích lũy tín hiệu cho review hàng tháng</CardDescription>
+          </div>
+          <StatusBadge value={healthLabel} variant={healthVariant} />
+        </div>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        <p className='text-sm leading-6'>{review.executiveSummary}</p>
+        <div className='grid gap-3 md:grid-cols-3'>
+          <InsightList title='Key themes' items={review.keyThemes} />
+          <InsightList title='PM risks' items={review.risks} />
+          <InsightList title='Next actions' items={review.recommendations} />
+        </div>
+        <div className='grid gap-3 lg:grid-cols-2'>
+          {review.memberAssessments.map((member) => (
+            <Card key={member.name} className='gap-3 bg-muted/20 shadow-none'>
+              <CardHeader className='pb-1'>
+                <div className='flex items-center justify-between gap-2'>
+                  <CardTitle className='text-sm'>{member.name}</CardTitle>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm font-semibold'>{member.score}/100</span>
+                    <StatusBadge value={member.rating.replace('_', ' ')} />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-2 text-sm'>
+                <p>{member.assessment}</p>
+                <p className='text-muted-foreground'><span className='font-medium text-foreground'>Focus:</span> {member.nextWeekFocus}</p>
+                <p className='text-muted-foreground'><span className='font-medium text-foreground'>Monthly signal:</span> {member.monthlyEvaluationNote}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -1663,9 +1737,17 @@ function HealthRow({
   )
 }
 
-function StatusBadge({ value, className }: { value: string; className?: string }) {
+function StatusBadge({
+  value,
+  className,
+  variant: forcedVariant,
+}: {
+  value: string
+  className?: string
+  variant?: 'default' | 'secondary' | 'destructive' | 'success' | 'warning' | 'info' | 'outline'
+}) {
   const normalized = value.toLowerCase()
-  const variant =
+  const variant = forcedVariant ?? (
     ['done', 'sent', 'completed', 'active', 'watched', 'processed'].includes(
       normalized
     )
@@ -1678,7 +1760,7 @@ function StatusBadge({ value, className }: { value: string; className?: string }
           ? 'warning'
           : normalized.includes('progress') || normalized.includes('decision')
             ? 'info'
-            : 'secondary'
+            : 'secondary')
 
   return <Badge variant={variant} className={`shrink-0 self-start ${className ?? ''}`}>
     {value}

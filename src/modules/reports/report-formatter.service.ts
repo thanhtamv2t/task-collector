@@ -87,6 +87,15 @@ export class ReportFormatterService {
       ...insights.recommendations.slice(0, 3).map((item) => `\\- ${this.escape(item)}`),
     ];
 
+    if (insights.pmReview) {
+      lines.push(
+        `*${this.escape('PM weekly review')}*`,
+        `\\- ${this.escape(insights.pmReview.executiveSummary)}`,
+        `\\- ${this.escape(`Team health: ${insights.pmReview.teamHealth}`)}`,
+        ...insights.pmReview.recommendations.slice(0, 2).map((item) => `\\- ${this.escape(item)}`),
+      );
+    }
+
     return lines.join('\n');
   }
 

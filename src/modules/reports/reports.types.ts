@@ -52,4 +52,21 @@ export interface ReportInsights {
     decisions: number;
     signal: string;
   }>;
+  pmReview?: {
+    executiveSummary: string;
+    teamHealth: 'strong' | 'steady' | 'at_risk' | 'critical';
+    keyThemes: string[];
+    risks: string[];
+    recommendations: string[];
+    memberAssessments: Array<{
+      name: string;
+      rating: 'exceptional' | 'strong' | 'steady' | 'needs_attention' | 'insufficient_data';
+      score: number;
+      assessment: string;
+      strengths: string[];
+      concerns: string[];
+      nextWeekFocus: string;
+      monthlyEvaluationNote: string;
+    }>;
+  };
 }

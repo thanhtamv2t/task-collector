@@ -149,10 +149,11 @@
 - [x] Daily reminder MarkdownV2 static text is escaped correctly, including trailing punctuation.
 - [x] Report detail prioritizes executive insights/KPIs, collapses raw Markdown, and uses stable semantic status badges.
 - [x] Root Vitest scope excludes shadcn-admin browser suites from backend test runs.
+- [x] Weekly PM review summarizes team health, member assessment, next-week focus, and monthly evaluation signals with an AI-backed prompt and deterministic fallback.
 
 ## Next Up
 
-1. Rebuild/deploy dashboard with `npm run dashboard:build` and `npm run dashboard:deploy`.
+1. Rebuild/deploy API and dashboard with `docker compose up -d --build api worker` and `npm run dashboard:build && npm run dashboard:deploy`.
 2. Verify `npm run test:integration` with PostgreSQL available.
 3. Create Telegram bot via BotFather and add it to a test group.
 4. Set Telegram/OpenRouter secrets in `.env`.

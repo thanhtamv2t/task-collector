@@ -9,6 +9,7 @@ import { TelegramBotService } from '../telegram/telegram-bot.service';
 import { ReportFormatterService } from './report-formatter.service';
 import { ReportsRepository } from './reports.repository';
 import { ReportInsights, ReportItem, ReportMessage, StructuredReport } from './reports.types';
+import { WeeklyPmReviewService } from './weekly-pm-review.service';
 
 @Injectable()
 export class ReportsService {
@@ -18,6 +19,7 @@ export class ReportsService {
     private readonly extractor: TaskExtractorService,
     private readonly chunker: MessageChunkerService,
     private readonly telegram: TelegramBotService,
+    private readonly weeklyPmReview: WeeklyPmReviewService,
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
     @Inject(telegramConfig.KEY)
@@ -85,6 +87,15 @@ export class ReportsService {
       messages,
     });
     const structured = this.structure(items);
+    if (this.isWeeklyReport(input.reportType, input.periodStart, input.periodEnd)) {
+      structured.insights.pmReview = await this.weeklyPmReview.review({
+        groupTitle: input.title,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        insights: structured.insights,
+        byUser: structured.byUser,
+      });
+    }
     const content = this.formatter.format({
       title: input.title,
       periodStart: input.periodStart,
@@ -131,6 +142,11 @@ export class ReportsService {
     });
 
     return { content, reportId, sent: true };
+  }
+
+  private isWeeklyReport(reportType: string, periodStart: Date, periodEnd: Date): boolean {
+    const days = (periodEnd.getTime() - periodStart.getTime()) / 86_400_000;
+    return reportType.toLowerCase().includes('weekly') || (days >= 6 && days <= 8);
   }
 
   private async notifyAdmins(input: {
