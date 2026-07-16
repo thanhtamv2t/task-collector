@@ -18,11 +18,11 @@ export class ReportFormatterService {
       this.insights(input.structured),
       '',
       this.performanceByUser(input.structured.byUser),
-      this.section('✅ Completed work', input.structured.completed),
-      this.section('🔄 In progress', input.structured.inProgress),
-      this.section('⛔ Blocker', input.structured.blockers),
-      this.section('📌 Quyết định', input.structured.decisions),
-      this.section('⚠️ Cần review AI', input.structured.needsReview),
+      this.section('✅ Completed work', input.structured.completed, 8),
+      this.section('🔄 In progress', input.structured.inProgress, 8),
+      this.section('⛔ Blocker', input.structured.blockers, 8),
+      this.section('📌 Quyết định', input.structured.decisions, 8),
+      this.section('⚠️ Cần review AI', input.structured.needsReview, 8),
     ]
       .filter(Boolean)
       .join('\n');
@@ -52,20 +52,24 @@ export class ReportFormatterService {
     return chunks;
   }
 
-  private section(title: string, items: ReportItem[]): string {
+  private section(title: string, items: ReportItem[], maxItems: number): string {
     if (items.length === 0) {
       return `*${this.escape(title)}*\n\\- Không có`;
     }
 
+    const visibleItems = items.slice(0, maxItems);
+    const omitted = items.length - visibleItems.length;
+
     return [
       `*${this.escape(title)}*`,
-      ...items.map((item) => {
+      ...visibleItems.map((item) => {
         const label = this.escape(item.summary);
         const sources = item.sourceMessageIds.length
           ? ` \\[src: ${this.escape(item.sourceMessageIds.join(', '))}\\]`
           : '';
         return `\\- ${label}${sources}`;
       }),
+      ...(omitted > 0 ? [`\\- ${this.escape(`+ ${omitted} items khác; xem dashboard để xem đầy đủ`)}`] : []),
       '',
     ].join('\n');
   }
@@ -76,11 +80,11 @@ export class ReportFormatterService {
       `*${this.escape('Executive insights')}*`,
       `\\- ${this.escape(insights.summary)}`,
       `*${this.escape('Highlights')}*`,
-      ...insights.highlights.slice(0, 5).map((item) => `\\- ${this.escape(item)}`),
+      ...insights.highlights.slice(0, 3).map((item) => `\\- ${this.escape(item)}`),
       `*${this.escape('Risks')}*`,
-      ...insights.risks.slice(0, 5).map((item) => `\\- ${this.escape(item)}`),
+      ...insights.risks.slice(0, 3).map((item) => `\\- ${this.escape(item)}`),
       `*${this.escape('Recommended actions')}*`,
-      ...insights.recommendations.slice(0, 5).map((item) => `\\- ${this.escape(item)}`),
+      ...insights.recommendations.slice(0, 3).map((item) => `\\- ${this.escape(item)}`),
     ];
 
     return lines.join('\n');
@@ -113,12 +117,14 @@ export class ReportFormatterService {
         const progress = group.items.filter((item) => item.eventType === 'task_progress');
         const blockers = group.items.filter((item) => item.eventType === 'blocker');
         const decisions = group.items.filter((item) => item.eventType === 'decision');
-        const sample = completed.slice(0, 6).map((item) => `  • ${this.escape(item.summary)}`);
+        const sample = completed.slice(0, 3).map((item) => `  • ${this.escape(item.summary)}`);
+        const omitted = completed.length - Math.min(completed.length, 3);
 
         return [
           `_${this.escape(group.name)}_`,
           `\\- Done: ${completed.length} \\| Progress: ${progress.length} \\| Blocker: ${blockers.length} \\| Decision: ${decisions.length}`,
           ...sample,
+          ...(omitted > 0 ? [`  • ${this.escape(`+ ${omitted} completed items khác; xem dashboard`)}`] : []),
         ].join('\n');
       }),
       '',

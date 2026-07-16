@@ -1370,11 +1370,20 @@ function ReportSheet({
             <ReportInsightsPanel report={report} />
             <MemberBreakdown report={report} />
             {report.content ? (
-              <article className='prose prose-sm max-w-none rounded-md border p-4 dark:prose-invert'>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {report.content}
-                </ReactMarkdown>
-              </article>
+              <details className='group rounded-md border bg-muted/20'>
+                <summary className='cursor-pointer list-none px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden'>
+                  <span className='flex items-center justify-between gap-3'>
+                    <span>Source report (Markdown)</span>
+                    <span className='text-xs text-muted-foreground group-open:hidden'>Show</span>
+                    <span className='hidden text-xs text-muted-foreground group-open:inline'>Hide</span>
+                  </span>
+                </summary>
+                <article className='prose prose-sm max-w-none border-t p-4 dark:prose-invert'>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {normalizeTelegramMarkdown(report.content)}
+                  </ReactMarkdown>
+                </article>
+              </details>
             ) : null}
           </div>
         ) : (
@@ -1439,8 +1448,25 @@ function ReportInsightsPanel({ report }: { report: ReportRow }) {
     return null
   }
 
+  const totals = insights.memberInsights.reduce(
+    (acc, member) => ({
+      completed: acc.completed + member.completed,
+      progress: acc.progress + member.progress,
+      blockers: acc.blockers + member.blockers,
+      decisions: acc.decisions + member.decisions,
+    }),
+    { completed: 0, progress: 0, blockers: 0, decisions: 0 }
+  )
+
   return (
-    <div className='grid gap-3 lg:grid-cols-3'>
+    <div className='space-y-3'>
+      <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+        <InsightMetric label='Completed' value={totals.completed} tone='success' />
+        <InsightMetric label='In progress' value={totals.progress} tone='info' />
+        <InsightMetric label='Blockers' value={totals.blockers} tone='destructive' />
+        <InsightMetric label='Decisions' value={totals.decisions} tone='warning' />
+      </div>
+      <div className='grid gap-3 lg:grid-cols-3'>
       <Card className='gap-3 shadow-none lg:col-span-3'>
         <CardHeader>
           <CardTitle className='text-base'>Summary</CardTitle>
@@ -1452,7 +1478,34 @@ function ReportInsightsPanel({ report }: { report: ReportRow }) {
       <InsightList title='Highlights' items={insights.highlights} />
       <InsightList title='Risks' items={insights.risks} />
       <InsightList title='Actions' items={insights.recommendations} />
+      </div>
     </div>
+  )
+}
+
+function InsightMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone: 'success' | 'info' | 'destructive' | 'warning'
+}) {
+  const color = {
+    success: 'text-emerald-700 dark:text-emerald-300',
+    info: 'text-sky-700 dark:text-sky-300',
+    destructive: 'text-destructive',
+    warning: 'text-amber-700 dark:text-amber-300',
+  }[tone]
+
+  return (
+    <Card className='gap-1 py-3 shadow-none'>
+      <CardContent className='px-4'>
+        <div className='text-xs text-muted-foreground'>{label}</div>
+        <div className={`text-2xl font-semibold ${color}`}>{value}</div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -1520,7 +1573,10 @@ function MemberBreakdown({ report }: { report: ReportRow }) {
               <ul className='space-y-2'>
                 {group.items.slice(0, 6).map((item, index) => (
                   <li key={index} className='flex gap-2 text-sm'>
-                    <StatusBadge value={item.eventType.replace('task_', '')} />
+                    <StatusBadge
+                      value={item.eventType.replace('task_', '')}
+                      className='mt-0.5 h-6 self-start px-2 text-[11px] leading-4'
+                    />
                     <span className='min-w-0 flex-1 text-muted-foreground'>
                       {item.summary}
                     </span>
@@ -1607,22 +1663,34 @@ function HealthRow({
   )
 }
 
-function StatusBadge({ value }: { value: string }) {
+function StatusBadge({ value, className }: { value: string; className?: string }) {
   const normalized = value.toLowerCase()
   const variant =
     ['done', 'sent', 'completed', 'active', 'watched', 'processed'].includes(
       normalized
     )
-      ? 'default'
+      ? 'success'
       : ['failed', 'blocked', 'inactive'].includes(normalized)
         ? 'destructive'
         : normalized.includes('pending') ||
             normalized.includes('processing') ||
             normalized.includes('running')
-          ? 'outline'
-          : 'secondary'
+          ? 'warning'
+          : normalized.includes('progress') || normalized.includes('decision')
+            ? 'info'
+            : 'secondary'
 
-  return <Badge variant={variant}>{value}</Badge>
+  return <Badge variant={variant} className={`shrink-0 self-start ${className ?? ''}`}>
+    {value}
+  </Badge>
+}
+
+function normalizeTelegramMarkdown(value: string) {
+  return value
+    .replace(/\\([_*[\]()~`>#+\-=|{}.!\\])/g, '$1')
+    .replace(/^\*Performance report:\* (.+)$/gm, '# Performance report: $1')
+    .replace(/^\*([^*\n]+)\*$/gm, '## $1')
+    .replace(/^_([^_\n]+)_$/gm, '### $1')
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

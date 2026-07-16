@@ -147,6 +147,8 @@
 - [x] Daily reminder admin filtering uses parameterized `NOT IN` values and returns a readable API error on failure.
 - [x] Manual/scheduled reminder reports per-group Telegram delivery failures without aborting the whole reminder run.
 - [x] Daily reminder MarkdownV2 static text is escaped correctly, including trailing punctuation.
+- [x] Report detail prioritizes executive insights/KPIs, collapses raw Markdown, and uses stable semantic status badges.
+- [x] Root Vitest scope excludes shadcn-admin browser suites from backend test runs.
 
 ## Next Up
 
