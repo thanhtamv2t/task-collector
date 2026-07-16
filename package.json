@@ -14,6 +14,7 @@
     "telegram:webhook": "sh scripts/setup-telegram-webhook.sh",
     "telegram:import-export": "node scripts/import-telegram-desktop-export.js",
     "telegram:import-export:docker": "sh scripts/import-telegram-export-docker.sh",
+    "telegram:process-pending:docker": "sh scripts/process-pending-docker.sh",
     "runtime:telegram-check": "sh scripts/check-telegram-runtime.sh",
     "runtime:openrouter-check": "sh scripts/check-openrouter-runtime.sh",
     "runtime:validate": "sh scripts/validate-runtime-env.sh",

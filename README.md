@@ -303,6 +303,13 @@ npm run telegram:import-export:docker -- result.json --chat-id=-1001234567890
 The importer skips service and empty messages by default, inserts imported messages as `pending`,
 and is safe to run multiple times.
 
+To process imported pending messages in Docker, enqueue extraction for the full pending message
+range, wait for processing, then enqueue a report:
+
+```bash
+npm run telegram:process-pending:docker
+```
+
 ## Dashboard
 
 The management dashboard lives in `dashboard/` and follows the Vite + React + shadcn-admin style.
