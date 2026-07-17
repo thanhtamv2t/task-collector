@@ -25,7 +25,7 @@
 - Milestone 6 production hardening is implemented in code/scripts/docs; runtime verification still needs Docker and VPS secrets.
 - Verified commands:
   - `npm run build`
-  - `npm test` (33 tests)
+  - `npm test` (35 tests)
   - `npm run lint`
   - `npm run runtime:validate` (passes with expected warnings while secrets/Docker are absent)
 
@@ -150,6 +150,7 @@
 - [x] Report detail prioritizes executive insights/KPIs, collapses raw Markdown, and uses stable semantic status badges.
 - [x] Root Vitest scope excludes shadcn-admin browser suites from backend test runs.
 - [x] Weekly PM review summarizes team health, member assessment, next-week focus, and monthly evaluation signals with an AI-backed prompt and deterministic fallback.
+- [x] GitHub OAuth login failures redirect back to the dashboard with readable errors instead of surfacing as generic 500s.
 
 ## Next Up
 

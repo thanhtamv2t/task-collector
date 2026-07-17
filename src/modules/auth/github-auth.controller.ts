@@ -1,4 +1,15 @@
-import { Controller, Get, Headers, Inject, Query, Res, UnauthorizedException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Inject,
+  Logger,
+  Query,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { appConfig } from '../../config/app.config';
 import {
@@ -32,6 +43,8 @@ type GitHubUserResponse = {
 
 @Controller('auth')
 export class GitHubAuthController {
+  private readonly logger = new Logger(GitHubAuthController.name);
+
   constructor(
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
@@ -64,42 +77,58 @@ export class GitHubAuthController {
   async callback(
     @Query('code') code: string | undefined,
     @Query('state') state: string | undefined,
+    @Query('error') error: string | undefined,
+    @Query('error_description') errorDescription: string | undefined,
     @Headers('cookie') cookieHeader: string | undefined,
     @Res() response: RedirectResponse,
   ) {
-    this.assertConfigured();
+    try {
+      this.assertConfigured();
 
-    const expectedState = readOauthState(cookieHeader);
-    if (!code || !state || !expectedState || state !== expectedState) {
-      throw new UnauthorizedException('Invalid GitHub OAuth state');
+      if (error) {
+        throw new UnauthorizedException(errorDescription ?? error);
+      }
+
+      const expectedState = readOauthState(cookieHeader);
+      if (!code || !state || !expectedState || state !== expectedState) {
+        throw new UnauthorizedException('Invalid GitHub OAuth state');
+      }
+
+      const accessToken = await this.exchangeCode(code);
+      const user = await this.fetchGitHubUser(accessToken);
+      if (!isAllowedAdmin({ id: user.id, login: user.login }, this.app)) {
+        throw new UnauthorizedException('This GitHub account is not an admin');
+      }
+
+      const expiresAt = Date.now() + 12 * 60 * 60 * 1000;
+      const sessionToken = createSessionToken(
+        {
+          id: user.id,
+          login: user.login,
+          name: user.name,
+          avatarUrl: user.avatar_url,
+          expiresAt,
+        },
+        this.app.authSessionSecret,
+      );
+
+      response.setHeader('Set-Cookie', [
+        buildCookie(DASHBOARD_SESSION_COOKIE, encodeURIComponent(sessionToken), {
+          nodeEnv: this.app.nodeEnv,
+          maxAgeSeconds: 43_200,
+        }),
+        buildCookie(GITHUB_OAUTH_STATE_COOKIE, '', { nodeEnv: this.app.nodeEnv, maxAgeSeconds: 0 }),
+      ]);
+      response.redirect(this.app.dashboardUrl);
+    } catch (authError) {
+      const message = this.authErrorMessage(authError);
+      this.logger.warn(`GitHub OAuth callback failed: ${message}`);
+      response.setHeader(
+        'Set-Cookie',
+        buildCookie(GITHUB_OAUTH_STATE_COOKIE, '', { nodeEnv: this.app.nodeEnv, maxAgeSeconds: 0 }),
+      );
+      this.redirectWithAuthError(response, message);
     }
-
-    const accessToken = await this.exchangeCode(code);
-    const user = await this.fetchGitHubUser(accessToken);
-    if (!isAllowedAdmin({ id: user.id, login: user.login }, this.app)) {
-      throw new UnauthorizedException('This GitHub account is not an admin');
-    }
-
-    const expiresAt = Date.now() + 12 * 60 * 60 * 1000;
-    const sessionToken = createSessionToken(
-      {
-        id: user.id,
-        login: user.login,
-        name: user.name,
-        avatarUrl: user.avatar_url,
-        expiresAt,
-      },
-      this.app.authSessionSecret,
-    );
-
-    response.setHeader('Set-Cookie', [
-      buildCookie(DASHBOARD_SESSION_COOKIE, encodeURIComponent(sessionToken), {
-        nodeEnv: this.app.nodeEnv,
-        maxAgeSeconds: 43_200,
-      }),
-      buildCookie(GITHUB_OAUTH_STATE_COOKIE, '', { nodeEnv: this.app.nodeEnv, maxAgeSeconds: 0 }),
-    ]);
-    response.redirect(this.app.dashboardUrl);
   }
 
   @Get('me')
@@ -138,7 +167,7 @@ export class GitHubAuthController {
   }
 
   private async exchangeCode(code: string): Promise<string> {
-    const response = await fetch('https://github.com/login/oauth/access_token', {
+    const response = await this.githubFetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         accept: 'application/json',
@@ -152,7 +181,7 @@ export class GitHubAuthController {
       }),
     });
 
-    const body = (await response.json()) as GitHubAccessTokenResponse;
+    const body = (await this.parseJson(response, 'GitHub token exchange')) as GitHubAccessTokenResponse;
     if (!response.ok || !body.access_token) {
       throw new UnauthorizedException(body.error_description ?? body.error ?? 'GitHub token exchange failed');
     }
@@ -161,7 +190,7 @@ export class GitHubAuthController {
   }
 
   private async fetchGitHubUser(accessToken: string): Promise<GitHubUserResponse> {
-    const response = await fetch('https://api.github.com/user', {
+    const response = await this.githubFetch('https://api.github.com/user', {
       headers: {
         accept: 'application/vnd.github+json',
         authorization: `Bearer ${accessToken}`,
@@ -173,6 +202,48 @@ export class GitHubAuthController {
       throw new UnauthorizedException('GitHub user lookup failed');
     }
 
-    return response.json() as Promise<GitHubUserResponse>;
+    return this.parseJson(response, 'GitHub user lookup') as Promise<GitHubUserResponse>;
+  }
+
+  private async githubFetch(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'GitHub request failed';
+      throw new BadGatewayException(`Unable to reach GitHub OAuth API: ${message}`);
+    }
+  }
+
+  private async parseJson(response: Response, context: string): Promise<unknown> {
+    try {
+      return await response.json();
+    } catch {
+      throw new BadGatewayException(`${context} returned invalid JSON`);
+    }
+  }
+
+  private authErrorMessage(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') {
+        return response;
+      }
+      if (response && typeof response === 'object' && 'message' in response) {
+        const message = (response as { message: unknown }).message;
+        return Array.isArray(message) ? message.join(', ') : String(message);
+      }
+    }
+
+    return error instanceof Error ? error.message : 'GitHub login failed';
+  }
+
+  private redirectWithAuthError(response: RedirectResponse, message: string): void {
+    try {
+      const url = new URL(this.app.dashboardUrl);
+      url.searchParams.set('auth_error', message);
+      response.redirect(url.toString());
+    } catch {
+      response.redirect(`/?auth_error=${encodeURIComponent(message)}`);
+    }
   }
 }

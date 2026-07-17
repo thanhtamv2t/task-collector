@@ -323,7 +323,7 @@ async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, { credentials: 'include' })
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`)
+    throw new Error(await responseErrorMessage(response))
   }
 
   return response.json() as Promise<T>
@@ -338,22 +338,43 @@ async function postJson<T>(path: string, body: unknown = {}): Promise<T> {
   })
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`)
+    throw new Error(await responseErrorMessage(response))
   }
 
   return response.json() as Promise<T>
 }
 
+async function responseErrorMessage(response: Response): Promise<string> {
+  const fallback = `${response.status} ${response.statusText}`
+
+  try {
+    const body = (await response.json()) as { message?: unknown; error?: unknown }
+    const message = body.message ?? body.error
+    if (Array.isArray(message)) {
+      return `${fallback}: ${message.join(', ')}`
+    }
+    if (message) {
+      return `${fallback}: ${String(message)}`
+    }
+  } catch {
+    // Keep the status-only fallback when the response is not JSON.
+  }
+
+  return fallback
+}
+
 export function DashboardShell() {
   const navigate = useNavigate()
-  const initialReportId = new URLSearchParams(window.location.search).get('reportId')
+  const initialSearchParams = new URLSearchParams(window.location.search)
+  const initialReportId = initialSearchParams.get('reportId')
+  const initialAuthError = initialSearchParams.get('auth_error')
   const [selectedReportId, setSelectedReportId] = useState<string | null>(
     initialReportId
   )
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined)
   const [data, setData] = useState<DashboardData>(initialData)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialAuthError)
   const [query, setQuery] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [performanceMode, setPerformanceMode] =
@@ -430,11 +451,13 @@ export function DashboardShell() {
     } catch (err) {
       setUser(null)
       setError(
-        err instanceof Error && !err.message.startsWith('401') ? err.message : null
+        err instanceof Error && !err.message.startsWith('401')
+          ? err.message
+          : initialAuthError
       )
       setLoading(false)
     }
-  }, [load])
+  }, [initialAuthError, load])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
